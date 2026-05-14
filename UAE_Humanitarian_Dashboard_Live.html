@@ -721,27 +721,6 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
   <!-- KPI tiles -->
   <div class="kpis" id="kpis" data-tab="overview"></div>
 
-  <!-- Tier 1 & 2 Movements -->
-  <div class="section" data-tab="overview" id="tierMovementsSection">
-    <h3>
-      <span>Tier 1 &amp; 2 — Priority Escalations</span>
-      <span class="count" id="tierMovCount"></span>
-    </h3>
-    <div id="tierMovements"></div>
-  </div>
-
-  <!-- Early Warning -->
-  <div class="section" data-tab="overview">
-    <h3>
-      <span id="lblEarly">Early Warning — countries trending up</span>
-      <span class="count" id="earlyCount"></span>
-    </h3>
-    <div class="early-list" id="earlyList"></div>
-    <div style="font-size:11px;color:var(--grey);margin-top:8px" data-i18n="earlyHint">
-      Score delta proxies (4-week trend from event velocity + funding-gap drift + access deterioration). Countries here are not yet Tier 1 but are projected to cross within 30 days. Pre-positioning is materially cheaper than emergency response.
-    </div>
-  </div>
-
   <!-- Interactive map -->
   <div class="section" data-tab="overview">
     <h3>
@@ -763,6 +742,27 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
           Hover for country summary · Click for the full profile
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Tier 1 & 2 Movements -->
+  <div class="section" data-tab="overview" id="tierMovementsSection">
+    <h3>
+      <span>Tier 1 &amp; 2 — Priority Escalations</span>
+      <span class="count" id="tierMovCount"></span>
+    </h3>
+    <div id="tierMovements"></div>
+  </div>
+
+  <!-- Early Warning -->
+  <div class="section" data-tab="overview">
+    <h3>
+      <span id="lblEarly">Early Warning — countries trending up</span>
+      <span class="count" id="earlyCount"></span>
+    </h3>
+    <div class="early-list" id="earlyList"></div>
+    <div style="font-size:11px;color:var(--grey);margin-top:8px" data-i18n="earlyHint">
+      Score delta proxies (4-week trend from event velocity + funding-gap drift + access deterioration). Countries here are not yet Tier 1 but are projected to cross within 30 days. Pre-positioning is materially cheaper than emergency response.
     </div>
   </div>
 
@@ -6505,7 +6505,7 @@ function renderFeeds(){
 
 function renderTierMovements(){
   const ar = USER_PREFS.language === 'ar';
-  const crises = (STATE.crises||[]).filter(c=>c.tier<=2).sort((a,b)=>a.tier-b.tier||b.score-a.score);
+  const crises = (STATE.crises||[]).filter(c=>c.tier<=2 && !/stabiliz/i.test(c.status||'')).sort((a,b)=>a.tier-b.tier||b.score-a.score);
   const el = document.getElementById('tierMovements');
   const ct = document.getElementById('tierMovCount');
   if(!el) return;
