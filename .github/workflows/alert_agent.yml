@@ -3,7 +3,7 @@ name: UAE Aid Alert Agent
 # Runs every hour. Can also be triggered manually from the Actions tab.
 on:
   schedule:
-    - cron: '0 * * * *'   # top of every hour, 24/7
+    - cron: '*/10 * * * *'   # every 10 minutes, 24/7
   workflow_dispatch:       # manual "Run workflow" button in GitHub UI
     inputs:
       mode:
