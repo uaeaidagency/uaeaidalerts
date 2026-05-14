@@ -6,10 +6,8 @@ Long-polls the Telegram Bot API for incoming messages. When a recognized
 country name is mentioned, replies with a crisis overview text and
 attaches the country's executive summary PDF.
 
-Restricted by default to the chat_ids configured in config.json
-("telegram": {"chat_ids": [...]}). Unauthorized chats receive a polite
-denial — and the bot logs the attempt so you can decide whether to
-whitelist them.
+Open to all users by default. The chat_ids in config.json are used only
+for outbound alert broadcasts (run_check.py), not to restrict inbound queries.
 
 Usage:
     python telegram_bot.py             # run in current shell
@@ -327,17 +325,8 @@ def _handle_message(token: str, message: dict, scores: List[CrisisScore],
     sender = sender.strip() or chat.get("username", "?")
     _log(f"Message from {sender} (chat {chat_id}): {text[:120]}")
 
-    # Security gate — skipped when query_open=true in config.json.
-    if not _load_config().get("query_open", False):
-        if authorized and chat_id not in authorized:
-            _log(f"  → IGNORED (chat_id {chat_id} not in whitelist {authorized})")
-            _send_message(
-                token, chat_id,
-                "🔒 This bot is restricted to authorized UAE Aid Agency contacts. "
-                f"Forward your chat ID (<code>{chat_id}</code>) to the administrator "
-                "to be whitelisted.",
-            )
-            return
+    # Bot is open to all users — chat_ids in config.json are for outbound alerts only.
+    # To restrict access in future, add logic here.
 
     if not text:
         return
