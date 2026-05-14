@@ -39,8 +39,14 @@ import urllib.request
 from typing import Dict, List, Optional, Set
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+PARENT = os.path.dirname(HERE)          # repo root — where the CSVs live
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
+
+# Optional: GitHub raw base URL for pulling live CSVs on cloud deployments.
+# Set as an environment variable, e.g.:
+#   GITHUB_RAW_BASE=https://raw.githubusercontent.com/your-org/your-repo/main
+GITHUB_RAW_BASE = os.environ.get("GITHUB_RAW_BASE", "").rstrip("/")
 
 from scoring import compute_all_scores, CrisisScore  # noqa: E402
 from telegram_sender import _read_token, _send_message, _send_document  # noqa: E402
@@ -81,6 +87,31 @@ COUNTRY_ALIASES = {
     "sri lanka": "Sri Lanka",
     "ivory coast": "Côte d'Ivoire",
 }
+
+
+CSV_FILES = [
+    "01_Active_Crises.csv",
+    "02_Humanitarian_Indicators.csv",
+    "03_UAE_Priority_Countries.csv",
+    "04_Response_Decision_Log.csv",
+]
+
+
+def _refresh_csvs() -> None:
+    """Pull the latest CSVs from GitHub raw URLs (cloud deployments only).
+    When GITHUB_RAW_BASE is not set this is a no-op — local files are used."""
+    if not GITHUB_RAW_BASE:
+        return
+    for filename in CSV_FILES:
+        url = f"{GITHUB_RAW_BASE}/{filename}"
+        local = os.path.join(PARENT, filename)
+        try:
+            with urllib.request.urlopen(url, timeout=20) as resp:
+                data = resp.read()
+            with open(local, "wb") as f:
+                f.write(data)
+        except Exception as e:
+            _log(f"CSV refresh failed for {filename}: {e}")
 
 
 def _log(message: str) -> None:
@@ -296,16 +327,17 @@ def _handle_message(token: str, message: dict, scores: List[CrisisScore],
     sender = sender.strip() or chat.get("username", "?")
     _log(f"Message from {sender} (chat {chat_id}): {text[:120]}")
 
-    # Security gate.
-    if authorized and chat_id not in authorized:
-        _log(f"  → IGNORED (chat_id {chat_id} not in whitelist {authorized})")
-        _send_message(
-            token, chat_id,
-            "🔒 This bot is restricted to authorized UAE Aid Agency contacts. "
-            f"Forward your chat ID (<code>{chat_id}</code>) to the administrator "
-            "to be whitelisted.",
-        )
-        return
+    # Security gate — skipped when query_open=true in config.json.
+    if not _load_config().get("query_open", False):
+        if authorized and chat_id not in authorized:
+            _log(f"  → IGNORED (chat_id {chat_id} not in whitelist {authorized})")
+            _send_message(
+                token, chat_id,
+                "🔒 This bot is restricted to authorized UAE Aid Agency contacts. "
+                f"Forward your chat ID (<code>{chat_id}</code>) to the administrator "
+                "to be whitelisted.",
+            )
+            return
 
     if not text:
         return
@@ -389,9 +421,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     try:
         while True:
-            # Periodically refresh scores so replies reflect current CSVs.
+            # Periodically pull fresh CSVs then recompute scores.
             if time.time() - scores_at > SCORES_REFRESH_S:
                 try:
+                    _refresh_csvs()
                     scores = compute_all_scores()
                     scores_at = time.time()
                     _log(f"Scores refreshed: {len(scores)} crises.")

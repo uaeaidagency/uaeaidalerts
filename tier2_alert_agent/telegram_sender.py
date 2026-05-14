@@ -51,6 +51,11 @@ TELEGRAM_MESSAGE_MAX = 4096     # Telegram limit for sendMessage text
 
 
 def _read_token() -> Optional[str]:
+    # Cloud deployment (Railway): token supplied as environment variable.
+    env_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    if env_token:
+        return env_token
+    # Local: read from telegram.env file.
     if not os.path.exists(TELEGRAM_ENV_FILE):
         return None
     with open(TELEGRAM_ENV_FILE, "r", encoding="utf-8") as f:

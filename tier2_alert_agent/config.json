@@ -6,8 +6,10 @@
   "alert_tier_threshold": 2,
   "telegram": {
     "enabled": true,
-    "chat_ids": [6869615091]
+    "chat_ids": [6869615091, 6556459589, -1003962635527]
   },
+  "query_open": true,
+  "github_raw_base": "",
   "dashboard_url": "",
   "notes": [
     "alert_tier_threshold = 2 means we alert on Tier 1 AND Tier 2 (numerically <= 2). Set to 1 to alert on Tier 1 only.",
