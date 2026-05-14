@@ -59,7 +59,22 @@ jobs:
           echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" \
             > tier2_alert_agent/telegram.env
 
-      # ── 5. Run the alert agent ────────────────────────────────────────
+      # ── 5. Refresh crisis data from live APIs ────────────────────────
+      #    update_crises.py pulls GDACS + UN FTS data and updates
+      #    01_Active_Crises.csv and 02_Humanitarian_Indicators.csv
+      #    before the alert agent reads them.
+      - name: Refresh crisis data from live APIs
+        run: python update_crises.py
+
+      - name: Commit refreshed CSVs
+        run: |
+          git config user.name  "UAE Aid Alert Bot"
+          git config user.email "bot@uaeaid-alerts.github"
+          git add 01_Active_Crises.csv 02_Humanitarian_Indicators.csv
+          git diff --staged --quiet \
+            || git commit -m "chore: refresh crisis data from APIs [skip ci]"
+
+      # ── 6. Run the alert agent ────────────────────────────────────────
       - name: Run alert agent
         run: |
           MODE="${{ github.event.inputs.mode || 'normal' }}"
@@ -73,7 +88,7 @@ jobs:
             python tier2_alert_agent/run_check.py
           fi
 
-      # ── 6. Persist state back to the repo ────────────────────────────
+      # ── 7. Persist state back to the repo ────────────────────────────
       #    The agent writes to tier2_alert_agent/state/ to remember which
       #    submissions / approvals / tier transitions it has already alerted
       #    on. Committing this back ensures the next hourly run doesn't
