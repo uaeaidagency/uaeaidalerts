@@ -1954,8 +1954,12 @@ function applyChrome(){
   // Inject/remove RTL override stylesheet for section headings
   let _rtlStyle = document.getElementById('_rtlOverride');
   if(!_rtlStyle){ _rtlStyle = document.createElement('style'); _rtlStyle.id = '_rtlOverride'; document.head.appendChild(_rtlStyle); }
+  // In RTL mode (dir="rtl" on body), flex-direction:row already lays flex items right→left
+  // (title = first child lands on the right). flex-direction:row-reverse must NOT be used —
+  // it double-negates the RTL and puts the title back on the left.
+  // We explicitly set direction:rtl on the h3 in case any ancestor resets it.
   _rtlStyle.textContent = _isAr
-    ? '.section h3{flex-direction:row-reverse!important;} .section h3>span:first-child{text-align:right!important;}'
+    ? 'body[dir="rtl"] .section h3{direction:rtl!important;}'
     : '';
   // Role selector removed; only lang + read-only remain
   document.getElementById('userLang').value = USER_PREFS.language;
@@ -3452,24 +3456,24 @@ const CRISIS_FLOWS = {
 // url: direct source link (UN News, ReliefWeb, official statement, news wire)
 // ── UN & international agency metadata ───────────────────────
 const UN_AGENCY_META = {
-  "WFP":       {name:"World Food Programme",           color:"#009EDB",bg:"#E3F4FD",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=wfp.org",          siteUrl:"https://www.wfp.org/"},
-  "UNICEF":    {name:"UN Children's Fund",              color:"#00AEEF",bg:"#E0F7FF",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=unicef.org",       siteUrl:"https://www.unicef.org/"},
-  "UNHCR":     {name:"UN Refugee Agency",               color:"#0072BC",bg:"#E3EEFB",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=unhcr.org",        siteUrl:"https://www.unhcr.org/"},
-  "WHO":       {name:"World Health Organization",       color:"#009A44",bg:"#E6F7EE",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=who.int",           siteUrl:"https://www.who.int/"},
-  "OCHA":      {name:"UN OCHA",                         color:"#1F6FB2",bg:"#EAF2FA",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=unocha.org",        siteUrl:"https://www.unocha.org/"},
-  "FAO":       {name:"Food & Agriculture Org.",         color:"#009DDB",bg:"#E0F4FD",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=fao.org",           siteUrl:"https://www.fao.org/"},
-  "ICRC":      {name:"Int'l Committee Red Cross",       color:"#CE1126",bg:"#FDE8EA",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=icrc.org",          siteUrl:"https://www.icrc.org/"},
-  "UNRWA":     {name:"UNRWA",                           color:"#009EE3",bg:"#E0F3FD",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=unrwa.org",         siteUrl:"https://www.unrwa.org/"},
-  "World Bank":{name:"World Bank Group",                color:"#009CA7",bg:"#E0F5F6",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=worldbank.org",     siteUrl:"https://www.worldbank.org/"},
-  "IMF":       {name:"Int'l Monetary Fund",             color:"#003087",bg:"#E5EAFA",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=imf.org",           siteUrl:"https://www.imf.org/"},
-  "IOM":       {name:"Int'l Organization Migration",    color:"#006EB6",bg:"#E0EEF9",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=iom.int",           siteUrl:"https://www.iom.int/"},
-  "IFRC":      {name:"Int'l Federation Red Cross",      color:"#E8000D",bg:"#FDE8E8",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=ifrc.org",          siteUrl:"https://www.ifrc.org/"},
-  "UAERCA":    {name:"UAE Red Crescent Authority",      color:"#CE1126",bg:"#FDE8EA",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=rcuae.ae",          siteUrl:"https://www.rcuae.ae/"},
-  "SARC":      {name:"Syrian Arab Red Crescent",        color:"#CE1126",bg:"#FDE8EA",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=sarc.org.sy",       siteUrl:"https://www.sarc.org.sy/"},
-  "KSRELIEF":  {name:"KSrelief",                        color:"#007A3D",bg:"#E6F4ED",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=ksrelief.org",      siteUrl:"https://ksrelief.org/"},
-  "TURK":      {name:"Türk Kızılay",                    color:"#E30A17",bg:"#FDE8E8",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=kizilay.org.tr",    siteUrl:"https://www.kizilay.org.tr/"},
-  "INSARAG":   {name:"UAE INSARAG Team",                color:"#0B2545",bg:"#E8EDF3",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=insarag.org",       siteUrl:"https://www.insarag.org/"},
-  "CERF":      {name:"UN CERF",                         color:"#1F6FB2",bg:"#EAF2FA",logoUrl:"https://www.google.com/s2/favicons?sz=64&domain=cerf.un.org",       siteUrl:"https://cerf.un.org/"},
+  "WFP":       {name:"World Food Programme",           color:"#009EDB",bg:"#E3F4FD",logoUrl:"https://logo.clearbit.com/wfp.org",          siteUrl:"https://www.wfp.org/"},
+  "UNICEF":    {name:"UN Children's Fund",              color:"#00AEEF",bg:"#E0F7FF",logoUrl:"https://logo.clearbit.com/unicef.org",       siteUrl:"https://www.unicef.org/"},
+  "UNHCR":     {name:"UN Refugee Agency",               color:"#0072BC",bg:"#E3EEFB",logoUrl:"https://logo.clearbit.com/unhcr.org",        siteUrl:"https://www.unhcr.org/"},
+  "WHO":       {name:"World Health Organization",       color:"#009A44",bg:"#E6F7EE",logoUrl:"https://logo.clearbit.com/who.int",           siteUrl:"https://www.who.int/"},
+  "OCHA":      {name:"UN OCHA",                         color:"#1F6FB2",bg:"#EAF2FA",logoUrl:"https://logo.clearbit.com/unocha.org",        siteUrl:"https://www.unocha.org/"},
+  "FAO":       {name:"Food & Agriculture Org.",         color:"#009DDB",bg:"#E0F4FD",logoUrl:"https://logo.clearbit.com/fao.org",           siteUrl:"https://www.fao.org/"},
+  "ICRC":      {name:"Int'l Committee Red Cross",       color:"#CE1126",bg:"#FDE8EA",logoUrl:"https://logo.clearbit.com/icrc.org",          siteUrl:"https://www.icrc.org/"},
+  "UNRWA":     {name:"UNRWA",                           color:"#009EE3",bg:"#E0F3FD",logoUrl:"https://logo.clearbit.com/unrwa.org",         siteUrl:"https://www.unrwa.org/"},
+  "World Bank":{name:"World Bank Group",                color:"#009CA7",bg:"#E0F5F6",logoUrl:"https://logo.clearbit.com/worldbank.org",     siteUrl:"https://www.worldbank.org/"},
+  "IMF":       {name:"Int'l Monetary Fund",             color:"#003087",bg:"#E5EAFA",logoUrl:"https://logo.clearbit.com/imf.org",           siteUrl:"https://www.imf.org/"},
+  "IOM":       {name:"Int'l Organization Migration",    color:"#006EB6",bg:"#E0EEF9",logoUrl:"https://logo.clearbit.com/iom.int",           siteUrl:"https://www.iom.int/"},
+  "IFRC":      {name:"Int'l Federation Red Cross",      color:"#E8000D",bg:"#FDE8E8",logoUrl:"https://logo.clearbit.com/ifrc.org",          siteUrl:"https://www.ifrc.org/"},
+  "UAERCA":    {name:"UAE Red Crescent Authority",      color:"#CE1126",bg:"#FDE8EA",logoUrl:"https://logo.clearbit.com/rcuae.ae",          siteUrl:"https://www.rcuae.ae/"},
+  "SARC":      {name:"Syrian Arab Red Crescent",        color:"#CE1126",bg:"#FDE8EA",logoUrl:"https://logo.clearbit.com/sarc.org.sy",       siteUrl:"https://www.sarc.org.sy/"},
+  "KSRELIEF":  {name:"KSrelief",                        color:"#007A3D",bg:"#E6F4ED",logoUrl:"https://logo.clearbit.com/ksrelief.org",      siteUrl:"https://ksrelief.org/"},
+  "TURK":      {name:"Türk Kızılay",                    color:"#E30A17",bg:"#FDE8E8",logoUrl:"https://logo.clearbit.com/kizilay.org.tr",    siteUrl:"https://www.kizilay.org.tr/"},
+  "INSARAG":   {name:"UAE INSARAG Team",                color:"#0B2545",bg:"#E8EDF3",logoUrl:"https://logo.clearbit.com/insarag.org",       siteUrl:"https://www.insarag.org/"},
+  "CERF":      {name:"UN CERF",                         color:"#1F6FB2",bg:"#EAF2FA",logoUrl:"https://logo.clearbit.com/cerf.un.org",       siteUrl:"https://cerf.un.org/"},
 };
 
 // Normalised alias map: upper-case name → UN_AGENCY_META key
@@ -3517,15 +3521,16 @@ function renderImplementerLogos(str, compact=false){
     const meta=getPartnerMeta(name);
     const gap=compact?'5px':'8px';
     const pad=compact?'4px 8px':'6px 10px';
-    const h=compact?20:24;
-    const maxW=compact?20:24;
+    const h=compact?20:26;
+    const maxW=compact?56:80;
     if(meta){
       const logoImg=meta.logoUrl
-        ? `<img src="${meta.logoUrl}" height="${h}" alt="${name}"
-             style="max-width:${maxW}px;height:${h}px;object-fit:contain;display:block"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='inline'">`
+        ? `<img src="${meta.logoUrl}" height="${h}" alt="${name}" loading="lazy"
+             style="max-width:${maxW}px;height:${h}px;object-fit:contain;display:block;background:#fff;border-radius:3px"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'">`
         : '';
-      const fallbackTxt=`<span style="display:${meta.logoUrl?'none':'inline'};font-size:${compact?9:10}px;font-weight:700;color:${meta.color}">${parts.length>0?name.replace(/^(.*?)\s*\(.*\)$/,'$1').split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,5):name}</span>`;
+      const abbr=name.replace(/^(.*?)\s*\(.*\)$/,'$1').split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,4);
+      const fallbackTxt=`<span style="display:${meta.logoUrl?'none':'inline-flex'};align-items:center;justify-content:center;min-width:${compact?28:36}px;height:${compact?18:22}px;border-radius:4px;background:${meta.color};font-size:${compact?8:9}px;font-weight:700;color:#fff;letter-spacing:.3px;padding:0 4px">${abbr}</span>`;
       const inner=compact
         ? `${logoImg}${fallbackTxt}`
         : `${logoImg}${fallbackTxt}<span style="font-size:11px;font-weight:500;color:#1f2937;white-space:nowrap">${name}</span>`;
