@@ -60,10 +60,14 @@ jobs:
             > tier2_alert_agent/telegram.env
 
       # ── 5. Refresh crisis data from live APIs ────────────────────────
-      #    update_crises.py pulls GDACS + UN FTS data and updates
-      #    01_Active_Crises.csv and 02_Humanitarian_Indicators.csv
-      #    before the alert agent reads them.
+      #    update_crises.py pulls data from GDACS, UN FTS, UNHCR,
+      #    IPC, WHO Disease Outbreak News, and optionally ACLED
+      #    (if ACLED_API_KEY + ACLED_EMAIL secrets are set) and
+      #    updates 01_Active_Crises.csv + 02_Humanitarian_Indicators.csv.
       - name: Refresh crisis data from live APIs
+        env:
+          ACLED_API_KEY: ${{ secrets.ACLED_API_KEY }}
+          ACLED_EMAIL:   ${{ secrets.ACLED_EMAIL }}
         run: python update_crises.py
 
       - name: Commit refreshed CSVs
