@@ -748,7 +748,7 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
   <!-- Tier 1 & 2 Movements -->
   <div class="section" data-tab="overview" id="tierMovementsSection">
     <h3>
-      <span>Tier 1 &amp; 2 — Priority Escalations</span>
+      <span id="lblTierMov">Tier 1 &amp; 2 — Priority Escalations</span>
       <span class="count" id="tierMovCount"></span>
     </h3>
     <div id="tierMovements"></div>
@@ -1212,6 +1212,7 @@ const I18N = {
     headerTitle:        "UAE Aid Agency — Live Humanitarian Monitoring",
     headerSubtitle:     "Real-time conflict & disaster tracker",
     earlyWarning:       "Early Warning — countries trending up",
+    tierMovements:      "Tier 1 & 2 — Priority Escalations",
     map:                "Global Crisis Map",
     pending:            "Pending Executive Actions — sign-off queue",
     priority:           "Live Priority Crises",
@@ -1435,6 +1436,7 @@ const I18N = {
     headerTitle:        "وكالة الامارات للمساعدات الدولية — الرصد الإنساني المباشر",
     headerSubtitle:     "متابعة حية للنزاعات والكوارث",
     earlyWarning:       "إنذار مبكر — دول في اتجاه التصاعد",
+    tierMovements:      "الفئة 1 و2 — التصعيدات ذات الأولوية",
     map:                "خريطة الأزمات العالمية",
     pending:            "الإجراءات التنفيذية المعلّقة — قائمة الاعتماد",
     priority:           "الأزمات ذات الأولوية",
@@ -1692,8 +1694,9 @@ const TRANSLATIONS = {
     "Haiti":"هايتي","Cuba":"كوبا","Dominican Republic":"جمهورية الدومينيكان","Venezuela":"فنزويلا",
     "Colombia":"كولومبيا","Ecuador":"الإكوادور","Peru":"بيرو","Bolivia":"بوليفيا","Brazil":"البرازيل",
     "Mexico":"المكسيك","Honduras":"هندوراس","Guatemala":"غواتيمالا","El Salvador":"السلفادور",
-    "Nicaragua":"نيكاراغوا","Panama":"بنما","Jamaica":"جامايكا",
-    "Canada":"كندا","Unknown":"غير معروف",
+    "Nicaragua":"نيكاراغوا","Panama":"بنما","Jamaica":"جامايكا","Bahamas":"جزر البهاما",
+    "Trinidad and Tobago":"ترينيداد وتوباغو","Barbados":"بربادوس","Belize":"بليز",
+    "Canada":"كندا","United States":"الولايات المتحدة","Unknown":"غير معروف",
   },
   regions: {
     "MENA":"الشرق الأوسط وشمال أفريقيا","Africa":"أفريقيا","South Asia":"جنوب آسيا",
@@ -1923,6 +1926,7 @@ function applyChrome(){
   if(btnImport) btnImport.textContent = USER_PREFS.language==='ar' ? '📂 استيراد' : '📂 Import';
   // Section headers
   set('lblEarly','earlyWarning');
+  set('lblTierMov','tierMovements');
   set('lblMap','map');
   set('lblPending','pending');
   set('lblPriority','priority');
@@ -6528,8 +6532,6 @@ function renderTierMovements(){
   const crises = (STATE.crises||[]).filter(c=>c.tier<=2 && !/stabiliz/i.test(c.status||'')).sort((a,b)=>a.tier-b.tier||b.score-a.score);
   const el = document.getElementById('tierMovements');
   const ct = document.getElementById('tierMovCount');
-  const panelTitle = document.querySelector('#tierMovementsSection h3 span:first-child');
-  if(panelTitle) panelTitle.textContent = ar ? 'الفئة 1 و2 — التصعيدات ذات الأولوية' : 'Tier 1 & 2 — Priority Escalations';
   if(!el) return;
   if(!crises.length){
     el.innerHTML = `<div style="color:var(--grey);font-size:13px;padding:4px 0">${ar?'لا توجد أزمات من الفئة 1 أو 2 في الوقت الحالي.':'No Tier 1 or Tier 2 crises at this time.'}</div>`;
@@ -6573,15 +6575,11 @@ function renderTierMovements(){
     const scoreWord      = ar ? 'النقاط' : 'Score';
     const sevWord        = ar ? 'الخطورة' : 'Sev';
 
-    const iso = iso2Of(c.country);
-    const flagMargin = ar ? 'margin-left:4px;margin-right:0' : 'margin-right:4px';
-    const flag = iso ? `<img src="https://flagcdn.com/w40/${iso.toLowerCase()}.png" alt="" style="width:18px;height:12px;object-fit:cover;border-radius:1px;vertical-align:middle;${flagMargin}">` : '';
-
     return `
-    <div class="early-card" style="border-left-color:${badge};cursor:default;${ar?'direction:rtl;text-align:right':''}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;flex-direction:${ar?'row-reverse':'row'}">
+    <div class="early-card" style="border-left-color:${badge};cursor:default">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
         <div>
-          <div class="country">${ar?'':flag}${countryDisplay}${ar?flag:''}</div>
+          <div class="country">${flagHtml(c.country)}${countryDisplay}</div>
           <div class="meta">${regionDisplay} · ${scoreWord} ${c.score.toFixed(1)} · ${sevWord} ${c.severity}/5</div>
         </div>
         <span style="background:${badge};color:#fff;font-size:10px;font-weight:800;
