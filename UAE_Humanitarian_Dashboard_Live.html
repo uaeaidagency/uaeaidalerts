@@ -6505,78 +6505,51 @@ function renderFeeds(){
 
 function renderTierMovements(){
   const ar = USER_PREFS.language === 'ar';
-  const crises = (STATE.crises||[]).filter(c => c.tier <= 2).sort((a,b) => a.tier - b.tier || b.score - a.score);
+  const crises = (STATE.crises||[]).filter(c=>c.tier<=2).sort((a,b)=>a.tier-b.tier||b.score-a.score);
   const el = document.getElementById('tierMovements');
   const ct = document.getElementById('tierMovCount');
   if(!el) return;
   if(!crises.length){
-    el.innerHTML = '<div style="color:var(--grey);font-size:13px;padding:8px 0">No Tier 1 or Tier 2 crises at this time.</div>';
+    el.innerHTML = '<div style="color:var(--grey);font-size:13px;padding:4px 0">No Tier 1 or Tier 2 crises at this time.</div>';
     if(ct) ct.textContent = '';
     return;
   }
-  if(ct) ct.textContent = crises.length + ' ' + (ar ? 'دولة' : (crises.length===1?'country':'countries'));
+  if(ct) ct.textContent = crises.length + (ar?' دولة':crises.length===1?' country':' countries');
 
-  const rows = crises.map(c => {
-    const isTier1 = c.tier === 1;
-    const bg    = isTier1 ? '#FEF2F2' : '#FFF7ED';
-    const bord  = isTier1 ? '#FECACA' : '#FED7AA';
-    const clr   = isTier1 ? '#991B1B' : '#9A3412';
-    const badge = isTier1 ? '#DC2626' : '#EA580C';
-    const tierLabel = isTier1
-      ? (ar ? 'الفئة 1 — استجابة فورية' : 'Tier 1 — Immediate')
-      : (ar ? 'الفئة 2 — استجابة قوية'  : 'Tier 2 — Strong');
+  const rows = crises.map(c=>{
+    const t1 = c.tier===1;
+    const clr  = t1 ? '#991B1B' : '#9A3412';
+    const badge = t1 ? '#DC2626' : '#EA580C';
+    const badgeTxt = t1 ? 'T1' : 'T2';
 
     const statusLow = (c.status||'').toLowerCase();
-    let dirIcon, dirTxt, dirClr;
-    if(statusLow.includes('escalat')){
-      dirIcon='↑'; dirTxt=ar?'تصاعد':'Escalating'; dirClr='#DC2626';
-    } else if(statusLow.includes('stabiliz')||statusLow.includes('improv')){
-      dirIcon='↓'; dirTxt=ar?'يتحسن':'Improving'; dirClr='#059669';
-    } else {
-      dirIcon='→'; dirTxt=ar?'مستقر':'Active'; dirClr='#D97706';
-    }
+    let dirIcon, dirClr;
+    if(statusLow.includes('escalat'))                          { dirIcon='↑'; dirClr='#DC2626'; }
+    else if(statusLow.includes('stabiliz')||statusLow.includes('improv')){ dirIcon='↓'; dirClr='#059669'; }
+    else                                                        { dirIcon='→'; dirClr='#D97706'; }
 
-    // Most recent RESPONSE_HISTORY trigger for this country
     const hist = (RESPONSE_HISTORY||[])
       .filter(h=>h.country===c.country)
       .sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
-    const cause = (hist&&hist.trigger) || c.notes || (ar?'—':'—');
-    const causeDate = hist
-      ? new Date(hist.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})
-      : (c.lastUpdated||'');
+    // Truncate cause to ~60 chars for snapshot brevity
+    const fullCause = (hist&&hist.trigger)||c.notes||'—';
+    const cause = fullCause.length > 60 ? fullCause.slice(0,58)+'…' : fullCause;
 
-    const isoCode = iso2Of(c.country);
-    const flagImg = isoCode
-      ? `<img src="https://flagcdn.com/w40/${isoCode.toLowerCase()}.png" alt="" style="width:22px;height:15px;object-fit:cover;border-radius:2px;flex-shrink:0">`
-      : '';
+    const iso = iso2Of(c.country);
+    const flag = iso ? `<img src="https://flagcdn.com/w40/${iso.toLowerCase()}.png" alt="" style="width:18px;height:12px;object-fit:cover;border-radius:1px;vertical-align:middle;margin-right:4px">` : '';
 
-    return `
-    <div style="background:${bg};border:1px solid ${bord};border-radius:10px;padding:12px 14px;
-                display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:64px">
-        <span style="background:${badge};color:#fff;font-size:10px;font-weight:700;
-                     letter-spacing:.4px;padding:2px 7px;border-radius:10px;white-space:nowrap">${tierLabel}</span>
-        <div style="display:flex;align-items:center;gap:4px;margin-top:2px">
-          ${flagImg}
-          <span style="font-size:12px;font-weight:700;color:${clr}">${c.country}</span>
-        </div>
-        <span style="font-size:10px;color:${dirClr};font-weight:600">${dirIcon} ${dirTxt}</span>
-      </div>
-      <div>
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
-                    color:#9CA3AF;margin-bottom:3px">${ar?'السبب الرئيسي / المحفّز':'Main cause / trigger'}</div>
-        <div style="font-size:12px;color:#1F2937;line-height:1.45">${cause}</div>
-        ${causeDate?`<div style="font-size:10px;color:#9CA3AF;margin-top:3px">${ar?'آخر تسجيل:':'Recorded:'} ${causeDate}</div>`:''}
-      </div>
-      <div style="text-align:right;white-space:nowrap">
-        <div style="font-size:11px;color:#6b7280">${ar?'النقاط':'Score'}</div>
-        <div style="font-size:16px;font-weight:700;color:${clr}">${c.score.toFixed(0)}</div>
-        <div style="font-size:10px;color:#9CA3AF">${ar?'خطورة':'Sev'} ${c.severity}/5</div>
-      </div>
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;
+                        border-radius:7px;background:#FAFAFA;border:1px solid #E5E7EB">
+      <span style="background:${badge};color:#fff;font-size:10px;font-weight:800;
+                   padding:1px 6px;border-radius:5px;flex-shrink:0">${badgeTxt}</span>
+      <span style="font-weight:700;font-size:12px;color:${clr};white-space:nowrap;min-width:90px">${flag}${c.country}</span>
+      <span style="font-size:13px;font-weight:700;color:${dirClr};flex-shrink:0">${dirIcon}</span>
+      <span style="font-size:12px;color:#374151;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cause}</span>
+      <span style="font-size:11px;font-weight:700;color:${clr};white-space:nowrap;flex-shrink:0">${c.score.toFixed(0)}</span>
     </div>`;
   });
 
-  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">${rows.join('')}</div>`;
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:5px">${rows.join('')}</div>`;
 }
 
 function renderKPIs(){
