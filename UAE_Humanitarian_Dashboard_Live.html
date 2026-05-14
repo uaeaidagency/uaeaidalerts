@@ -8163,6 +8163,76 @@ function openDrawerCountry(c, allCrises){
       })()}
     </div>
 
+    ${(()=>{
+      /* ── Tier movement section ─────────────────────────── */
+      const ar2 = USER_PREFS.language === 'ar';
+      const tier = c.tier;
+
+      // Only show for Tier 1 or Tier 2 (action-level tiers)
+      if (tier > 2) return '';
+
+      // Direction from status
+      const statusLow = (c.status||'').toLowerCase();
+      let dirIcon, dirLabel, dirColor;
+      if (statusLow.includes('escalat')) {
+        dirIcon = '↑'; dirColor = '#DC2626';
+        dirLabel = ar2 ? 'تصاعد حديث' : 'Recently escalated';
+      } else if (statusLow.includes('stabiliz') || statusLow.includes('improv')) {
+        dirIcon = '↓'; dirColor = '#059669';
+        dirLabel = ar2 ? 'يتحسن تدريجياً' : 'Gradually improving';
+      } else {
+        dirIcon = '→'; dirColor = '#D97706';
+        dirLabel = ar2 ? 'مستمر على هذه الفئة' : 'Holding at this tier';
+      }
+
+      // Pull most recent RESPONSE_HISTORY entry for this country
+      const histEntry = (RESPONSE_HISTORY||[])
+        .filter(h => h.country === c.country)
+        .sort((a,b) => new Date(b.date) - new Date(a.date))[0];
+
+      const triggerText = (histEntry && histEntry.trigger) || c.notes || '—';
+      const triggerDate = histEntry
+        ? new Date(histEntry.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})
+        : (c.lastUpdated || '');
+
+      const tierBg   = tier === 1 ? '#FEF2F2' : '#FFF7ED';
+      const tierBord = tier === 1 ? '#FECACA' : '#FED7AA';
+      const tierClr  = tier === 1 ? '#991B1B' : '#9A3412';
+      const tierIcon = tier === 1 ? '🟥' : '🟧';
+      const tierName = tier === 1
+        ? (ar2 ? 'الفئة 1 — استجابة فورية' : 'Tier 1 — Immediate Response')
+        : (ar2 ? 'الفئة 2 — استجابة قوية'   : 'Tier 2 — Strong Response');
+
+      return `
+      <h4 style="margin-top:18px">${ar2 ? 'تصنيف الفئة والتغيير' : 'Tier Classification & Movement'}</h4>
+      <div style="border:1px solid ${tierBord};background:${tierBg};border-radius:10px;padding:14px 16px;margin-bottom:4px">
+
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <span style="font-size:22px;line-height:1">${tierIcon}</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:${tierClr};letter-spacing:.2px">${tierName}</div>
+            <div style="font-size:11px;color:#6b7280;margin-top:1px">${ar2?'تصنيف الأولوية الحالي':'Current priority classification'}</div>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:5px;
+                      background:${dirColor}18;border:1px solid ${dirColor}40;
+                      border-radius:20px;padding:3px 10px">
+            <span style="font-size:14px;font-weight:700;color:${dirColor}">${dirIcon}</span>
+            <span style="font-size:11px;font-weight:600;color:${dirColor}">${dirLabel}</span>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid ${tierBord};padding-top:10px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+                      color:#9CA3AF;margin-bottom:5px">
+            ${ar2 ? 'السبب الرئيسي / المحفّز' : 'Main cause / trigger'}
+          </div>
+          <div style="font-size:12px;color:#1F2937;line-height:1.5">${triggerText}</div>
+          ${triggerDate ? `<div style="font-size:10px;color:#9CA3AF;margin-top:5px">${ar2?'آخر تحديث:':'Last recorded:'} ${triggerDate}</div>` : ''}
+        </div>
+
+      </div>`;
+    })()}
+
     <h4>${L('drAgencies')}</h4>
     <div class="agency-grid">${linksHTML}</div>
     <div style="font-size:11px;color:var(--grey);margin-top:6px">
