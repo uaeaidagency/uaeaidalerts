@@ -6,6 +6,7 @@ Runs before run_check.py on every hourly GitHub Actions cycle and updates:
 
   01_Active_Crises.csv
     • Severity (1-5)      — updated for natural-disaster crises from GDACS
+    • INFORM Risk         — updated from EU JRC INFORM Crisis Index (fallback: HDX)
     • Last Updated        — set to today whenever any field changes
     • New rows            — high-severity events not yet in the CSV are appended
                            (flagged "REVIEW NEEDED" so a human can curate them)
@@ -390,6 +391,84 @@ def fetch_who_disease_risk() -> Dict[str, int]:
     return risk
 
 
+# ── INFORM — country risk scores ─────────────────────────────────────────
+def fetch_inform_risk() -> Dict[str, float]:
+    """
+    Return {canonical_country: inform_risk_score} from the INFORM Global
+    Crisis Severity Index published by the EU Joint Research Centre.
+    Scores range 0–10. No API key required.
+    Falls back to the HDX dataset if the JRC endpoint is unavailable.
+    """
+    inform: Dict[str, float] = {}
+
+    # Primary: JRC INFORM Crisis API
+    try:
+        data  = _http_json(
+            "https://drmkc.jrc.ec.europa.eu/inform-index/API/InformAPI"
+            "/countries/Scores/regions/0/year/0/type/INFORM/indextype/INFORM"
+            "/aggregation/MEAN/themes/0",
+            timeout=30,
+        )
+        records = (
+            data.get("data")
+            or data.get("countries")
+            or data.get("value")
+            or (data if isinstance(data, list) else [])
+        )
+        for rec in records:
+            raw   = (rec.get("CountryName") or rec.get("country") or "").strip()
+            score = rec.get("INFORMScore") or rec.get("inform_score") or rec.get("Score")
+            country = _norm(raw)
+            if country and score is not None:
+                try:
+                    inform[country] = round(float(score), 1)
+                except (ValueError, TypeError):
+                    pass
+        if inform:
+            print(f"(JRC, {len(inform)} countries)", end=" ")
+            return inform
+    except Exception as e:
+        print(f"(JRC unavailable: {type(e).__name__}) ", end="", file=sys.stderr)
+
+    # Fallback: HDX CKAN datastore — INFORM Global Crisis Severity Index
+    try:
+        search = _http_json(
+            "https://data.humdata.org/api/3/action/package_search"
+            "?q=inform+global+crisis+severity+index&rows=3",
+            timeout=20,
+        )
+        resources = []
+        for pkg in (search.get("result", {}).get("results") or []):
+            resources.extend(pkg.get("resources") or [])
+        csv_url = next(
+            (r["url"] for r in resources if r.get("format", "").upper() == "CSV"),
+            None,
+        )
+        if csv_url:
+            req = urllib.request.Request(
+                csv_url,
+                headers={"User-Agent": "uae-aid-monitor/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                text = r.read().decode("utf-8-sig")
+            reader = csv.DictReader(text.splitlines())
+            for row in reader:
+                raw   = (row.get("Country") or row.get("country_name") or "").strip()
+                score = row.get("INFORM Score") or row.get("inform_score") or row.get("Score")
+                country = _norm(raw)
+                if country and score:
+                    try:
+                        inform[country] = round(float(score), 1)
+                    except (ValueError, TypeError):
+                        pass
+            if inform:
+                print(f"(HDX, {len(inform)} countries)", end=" ")
+    except Exception as e:
+        print(f"(HDX unavailable: {type(e).__name__})", end="", file=sys.stderr)
+
+    return inform
+
+
 # ── GDACS — natural disaster alerts ──────────────────────────────────────
 def fetch_gdacs_events() -> List[Dict]:
     """Return list of current Red/Orange GDACS alerts."""
@@ -614,7 +693,29 @@ def update_crises() -> None:
             changes += 1
             print(f"    WHO disease risk: {country} {old} → {val}")
 
-    # ── 6. GDACS: Disaster severity + new crises ──────────────────────────
+    # ── 6. INFORM: Country risk scores ───────────────────────────────────
+    print("  Fetching INFORM risk scores…", end=" ")
+    inform = fetch_inform_risk()
+    print(f"{len(inform)} countries")
+
+    for crisis in crises:
+        country = crisis["Country"]
+        val = inform.get(country)
+        if val is None:
+            for k, v in inform.items():
+                if k.lower() in country.lower() or country.lower() in k.lower():
+                    val = v
+                    break
+        if val is None:
+            continue
+        old = crisis.get("INFORM Risk", "")
+        if _meaningful_change(old, val):
+            crisis["INFORM Risk"]  = str(val)
+            crisis["Last Updated"] = TODAY
+            changes += 1
+            print(f"    INFORM risk: {country} {old} → {val}")
+
+    # ── 7. GDACS: Disaster severity + new crises ─────────────────────────
     print("  Fetching GDACS events…", end=" ")
     gdacs_events = fetch_gdacs_events()
     print(f"{len(gdacs_events)} alerts")
@@ -662,7 +763,7 @@ def update_crises() -> None:
                 indic_by_id[new_id] = new_indic
                 changes += 1
 
-    # ── 7. ReliefWeb: new crises (double-source check) ────────────────────
+    # ── 8. ReliefWeb: new crises (double-source check) ────────────────────
     print("  Fetching ReliefWeb events…", end=" ")
     rw_events = fetch_reliefweb_events()
     print(f"{len(rw_events)} events")
@@ -702,7 +803,7 @@ def update_crises() -> None:
         indic_by_id[new_id] = new_indic
         changes += 1
 
-    # ── 8. Write back ──────────────────────────────────────────────────────
+    # ── 9. Write back ──────────────────────────────────────────────────────
     if changes:
         _write_csv(CRISES_CSV,     c_fields, crises)
         _write_csv(INDICATORS_CSV, i_fields, indicators)
