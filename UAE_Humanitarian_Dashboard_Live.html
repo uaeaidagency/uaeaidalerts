@@ -1951,11 +1951,12 @@ function applyChrome(){
   const _isAr = USER_PREFS.language === 'ar';
   document.body.setAttribute('dir', _isAr ? 'rtl' : 'ltr');
   document.body.lang = USER_PREFS.language;
-  // Section headings — flip title to right in Arabic
-  document.querySelectorAll('.section h3').forEach(h3 => {
-    h3.style.flexDirection = _isAr ? 'row-reverse' : '';
-    h3.style.textAlign     = _isAr ? 'right' : '';
-  });
+  // Inject/remove RTL override stylesheet for section headings
+  let _rtlStyle = document.getElementById('_rtlOverride');
+  if(!_rtlStyle){ _rtlStyle = document.createElement('style'); _rtlStyle.id = '_rtlOverride'; document.head.appendChild(_rtlStyle); }
+  _rtlStyle.textContent = _isAr
+    ? '.section h3{flex-direction:row-reverse!important;} .section h3>span:first-child{text-align:right!important;}'
+    : '';
   // Role selector removed; only lang + read-only remain
   document.getElementById('userLang').value = USER_PREFS.language;
   document.getElementById('roToggle').checked = !!USER_PREFS.readOnly;
