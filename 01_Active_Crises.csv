@@ -1,0 +1,26 @@
+Crisis ID,Country,Region,Crisis Type,Status,Start Date,Severity (1-5),INFORM Risk,Source,Last Updated,Notes / Trigger Event
+C-001,Sudan,Africa,Conflict,Escalating,2023-04-15,5,4.6,OCHA/ACAPS,2026-05-08,RSF-SAF war; mass displacement; famine declared in El Fasher region
+C-002,Palestine (Gaza),MENA,Conflict,Active,2023-10-07,5,4.9,OCHA/WHO,2026-05-09,Continuing humanitarian crisis; reconstruction needs; food and health collapse
+C-003,Yemen,MENA,Complex,Active,2014-09-21,4,4.4,OCHA/IPC,2026-05-07,Protracted conflict; cholera resurgence; 18M+ in need
+C-004,Syria,MENA,Complex,Stabilizing,2011-03-15,4,4.2,OCHA/REACH,2026-05-05,Post-transition recovery; sanctions easing; refugee returns gathering pace
+C-005,Ukraine,Europe,Conflict,Active,2022-02-24,4,4.0,OCHA/UNHCR,2026-05-06,Continuing war; energy infrastructure damage; winter needs
+C-006,DR Congo,Africa,Conflict,Escalating,2021-03-01,4,4.3,OCHA/IPC,2026-05-04,M23/eastern DRC conflict; massive displacement in North/South Kivu
+C-007,Afghanistan,South Asia,Complex,Active,2021-08-15,4,4.5,OCHA/IPC,2026-05-06,Economic collapse; food insecurity; women's rights restrictions; earthquakes
+C-008,Myanmar,Southeast Asia,Conflict,Active,2021-02-01,4,4.1,OCHA/UNHCR,2026-05-03,Civil war; Rakhine crisis; cyclone aftermath
+C-009,Haiti,Americas,Complex,Escalating,2024-02-29,4,4.0,OCHA/IOM,2026-05-08,Gang violence; political vacuum; food crisis
+C-010,Somalia,Africa,Complex,Active,2011-01-01,4,4.3,OCHA/IPC,2026-05-04,Drought-conflict-displacement nexus; Al-Shabaab insurgency
+C-011,South Sudan,Africa,Complex,Active,2013-12-15,4,4.2,OCHA/IPC,2026-05-02,Inter-communal violence; food insecurity; spillover from Sudan
+C-012,Ethiopia,Africa,Complex,Active,2020-11-04,3,3.7,OCHA/IPC,2026-05-04,Tigray recovery; Amhara conflict; Oromia tensions; drought
+C-013,Lebanon,MENA,Complex,Active,2019-10-17,3,3.5,OCHA/UNHCR,2026-05-05,Economic crisis; refugees; cross-border tensions
+C-014,Burkina Faso,Africa,Conflict,Escalating,2019-01-01,4,4.0,OCHA/ACLED,2026-05-03,Sahel jihadist insurgency; mass displacement
+C-015,Mali,Africa,Conflict,Active,2012-01-01,4,3.9,OCHA/ACLED,2026-05-03,Sahel insurgency; political transition tensions
+C-016,Burundi,Africa,Disaster,Recovery,2024-04-01,2,2.8,EM-DAT/UNHCR,2026-04-28,Floods recovery; cholera outbreak
+C-017,Bangladesh,South Asia,Disaster+Refugee,Active,2017-08-25,3,3.6,OCHA/UNHCR,2026-05-01,Rohingya refugee response; recurring floods/cyclones
+C-018,Pakistan,South Asia,Disaster,Active,2025-08-10,3,3.5,OCHA/NDMA,2026-05-02,Recurrent monsoon floods; KP earthquake aftermath
+C-019,Türkiye,MENA,Disaster,Recovery,2023-02-06,2,2.5,OCHA/AFAD,2026-04-30,Earthquake reconstruction continuing; Syrian refugee burden
+C-020,Mozambique,Africa,Disaster,Active,2024-12-15,3,3.4,OCHA/INGD,2026-04-29,Cyclone Chido aftermath; cholera
+C-021,Libya,MENA,Complex,Active,2014-08-01,3,3.5,OCHA/IOM,2026-04-26,Political stalemate; migration crisis; Derna flood recovery
+C-022,Iraq,MENA,Recovery,Stabilizing,2014-06-10,2,2.7,OCHA/IOM,2026-04-28,IDP returns; minority reintegration
+C-023,Indonesia,Southeast Asia,Disaster,Active,2025-11-12,3,3.0,OCHA/BNPB,2026-05-01,Earthquake/tsunami response; volcanic activity
+C-024,Niger,Africa,Complex,Active,2023-07-26,3,3.6,OCHA/ACLED,2026-05-02,Sahel insurgency; political transition; food insecurity
+C-025,Sri Lanka,South Asia,Recovery,Stabilizing,2022-04-12,2,2.4,OCHA/WB,2026-04-22,Economic recovery; food security improving

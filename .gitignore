@@ -1,0 +1,23 @@
+# Large generated files — not needed in the cloud repo
+*.pptx
+*.pdf
+*.pyc
+__pycache__/
+.boundaries_cache.json
+embedded_data.js
+logo_data.js
+globe_sphere.png
+*.png
+*.jpg
+
+# Windows scripts
+*.ps1
+
+# Credentials (belt-and-suspenders, also excluded in agent subfolder)
+smtp.env
+telegram.env
+
+# Keep the HTML dashboard local — it's too large and not needed for cloud alerts
+UAE_Humanitarian_Dashboard*.html
+Humanitarian_Overview*.html
+UAE_Aid_Agency_Presentation*.html

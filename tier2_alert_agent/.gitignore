@@ -1,0 +1,15 @@
+# Never commit credentials or runtime artifacts.
+smtp.env
+telegram.env
+
+# State files ARE committed so GitHub Actions remembers
+# which events have already been alerted on between runs.
+# (state/ is intentionally NOT listed here)
+
+logs/
+output/
+__pycache__/
+*.pyc
+.python_path.txt
+preview/
+*.ps1

@@ -1,0 +1,21 @@
+{
+  "recipients": [
+    "uaeaidagencyy@gmail.com"
+  ],
+  "subject_template": "[UAE Aid · Tier {tier} Alert] {country} — {crisis_id}",
+  "alert_tier_threshold": 2,
+  "telegram": {
+    "enabled": true,
+    "chat_ids": [6869615091]
+  },
+  "dashboard_url": "",
+  "notes": [
+    "alert_tier_threshold = 2 means we alert on Tier 1 AND Tier 2 (numerically <= 2). Set to 1 to alert on Tier 1 only.",
+    "recipients = email recipients. Leave empty [] to disable the email channel.",
+    "telegram.enabled = whether to attempt Telegram sends. Token lives in telegram.env.",
+    "telegram.chat_ids = list of integer chat_ids (positive for users, negative for groups, -100... for channels). Leave empty to disable Telegram.",
+    "Subject template supports {country}, {crisis_id}, and {tier} placeholders.",
+    "Email is sent via Gmail SMTP (smtp.env). Both channels run in parallel; either can fail without affecting the other.",
+    "dashboard_url is included as a clickable link in every alert. file:// is clickable from desktop email clients but not from Gmail web — swap for a hosted URL if leadership accesses the dashboard from outside their own machine."
+  ]
+}

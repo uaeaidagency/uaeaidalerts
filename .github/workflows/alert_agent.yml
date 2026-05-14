@@ -1,0 +1,67 @@
+name: UAE Aid Alert Agent
+
+# Runs every hour. Can also be triggered manually from the Actions tab.
+on:
+  schedule:
+    - cron: '0 * * * *'   # top of every hour, 24/7
+  workflow_dispatch:       # manual "Run workflow" button in GitHub UI
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # needed to commit state files back to the repo
+
+    steps:
+      # ── 1. Check out the repo ────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Set up Python ─────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ── 3. Install Python dependencies ───────────────────────────────
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── 4. Write credentials from GitHub Secrets ─────────────────────
+      #    Secrets are never stored in the repo — they live in
+      #    Settings → Secrets and variables → Actions on GitHub.
+      - name: Write SMTP credentials
+        run: |
+          cat > tier2_alert_agent/smtp.env << 'EOF'
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+          SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}
+          EOF
+
+      - name: Write Telegram credentials
+        run: |
+          echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+            > tier2_alert_agent/telegram.env
+
+      # ── 5. Run the alert agent ────────────────────────────────────────
+      - name: Run alert agent
+        run: python tier2_alert_agent/run_check.py
+
+      # ── 6. Persist state back to the repo ────────────────────────────
+      #    The agent writes to tier2_alert_agent/state/ to remember which
+      #    submissions / approvals / tier transitions it has already alerted
+      #    on. Committing this back ensures the next hourly run doesn't
+      #    re-alert on the same events.
+      - name: Commit state changes
+        run: |
+          git config user.name  "UAE Aid Alert Bot"
+          git config user.email "bot@uaeaid-alerts.github"
+          git add tier2_alert_agent/state/
+          git diff --staged --quiet \
+            || git commit -m "chore: update agent state [skip ci]"
+          git push
