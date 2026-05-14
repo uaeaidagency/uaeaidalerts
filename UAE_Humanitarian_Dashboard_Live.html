@@ -5909,9 +5909,9 @@ function renderEarlyWarning(){
   const candidates = [];
   for(const c of STATE.crises){
     const delta = EARLY_WARNING_BASE[c.country] || (c.tier===2 ? 4.5 : c.tier===3 ? 3.0 : 0);
-    if(delta > 2 && c.tier !== 1){
+    if(delta > 2 && c.tier > 2){
       const projected = Math.min(100, c.score + delta);
-      const willCross = (projected >= 75) && (c.tier > 1);
+      const willCross = (projected >= 60) && (c.tier > 2);
       candidates.push({country:c.country, region:c.region, score:c.score, delta, projected, tier:c.tier, willCross, severity:c.severity});
     }
   }
