@@ -5,6 +5,17 @@ on:
   schedule:
     - cron: '0 * * * *'   # top of every hour, 24/7
   workflow_dispatch:       # manual "Run workflow" button in GitHub UI
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: true
+        default: 'normal'
+        type: choice
+        options:
+          - normal           # only alert on new transitions (production)
+          - test-submission  # send a test submission alert right now
+          - test-email       # send a test tier-escalation alert right now
+          - force            # alert on ALL current Tier 1/2 crises
 
 jobs:
   run-agent:
@@ -50,7 +61,17 @@ jobs:
 
       # ── 5. Run the alert agent ────────────────────────────────────────
       - name: Run alert agent
-        run: python tier2_alert_agent/run_check.py
+        run: |
+          MODE="${{ github.event.inputs.mode || 'normal' }}"
+          if   [ "$MODE" = "test-submission" ]; then
+            python tier2_alert_agent/run_check.py --test-submission
+          elif [ "$MODE" = "test-email" ]; then
+            python tier2_alert_agent/run_check.py --test-email
+          elif [ "$MODE" = "force" ]; then
+            python tier2_alert_agent/run_check.py --force
+          else
+            python tier2_alert_agent/run_check.py
+          fi
 
       # ── 6. Persist state back to the repo ────────────────────────────
       #    The agent writes to tier2_alert_agent/state/ to remember which
