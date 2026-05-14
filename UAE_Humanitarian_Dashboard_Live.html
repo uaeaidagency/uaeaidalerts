@@ -3528,17 +3528,14 @@ function renderImplementerLogos(str, compact=false){
     const metaKey = PARTNER_ALIASES[name.trim().toUpperCase()] || null;
     const meta    = metaKey ? (UN_AGENCY_META[metaKey] || null) : null;
     if(meta){
-      // Use the meta key as the displayed acronym (WFP, IOM, OCHA…).
-      // Keys are always correct acronyms — no need to guess initials.
-      const abbr = metaKey;
-      // Coloured acronym pill — the primary visual identity element
+      // Coloured acronym pill using the meta key (WFP, IOM, OCHA, WHO…)
       const badge = `<span style="display:inline-flex;align-items:center;justify-content:center;
         padding:0 7px;height:${compact?20:24}px;border-radius:5px;
         background:${meta.color};font-size:${compact?9:10}px;font-weight:800;
-        color:#fff;letter-spacing:.6px;white-space:nowrap;flex-shrink:0">${abbr}</span>`;
-      // Full name only in English non-compact view
+        color:#fff;letter-spacing:.6px;white-space:nowrap;flex-shrink:0">${metaKey}</span>`;
+      // In Arabic: badge only. In English non-compact: badge + partner name as it appears in the data.
       const label = (!compact && !ar)
-        ? `<span style="font-size:11px;font-weight:500;color:#374151;white-space:nowrap">${meta.name}</span>`
+        ? `<span style="font-size:11px;font-weight:500;color:#374151;white-space:nowrap">${name}</span>`
         : '';
       return `<a href="${meta.siteUrl}" target="_blank" rel="noopener" title="${meta.name}"
         style="display:inline-flex;align-items:center;gap:6px;
