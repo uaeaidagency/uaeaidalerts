@@ -19,6 +19,7 @@
      (downloadBrief, generateExecSummaryPDF) when running from file://
      because Edge blocks fetch/XHR of sibling files in that context. -->
 <script src="./logo_data.js" onerror="window.LOGO_DATA_MISSING=true"></script>
+<script src="./partner_logos.js" onerror="window.PARTNER_LOGOS=window.PARTNER_LOGOS||{}"></script>
 <style>
 :root{
   --navy:#1D252C; --navy-2:#2F586E; --gold:#FBAE40; --gold-2:#AD833B;
@@ -3461,16 +3462,21 @@ const CRISIS_FLOWS = {
 // type: "political" | "funding" | "ceasefire" | "policy" | "election" | "diplomatic"
 // url: direct source link (UN News, ReliefWeb, official statement, news wire)
 // ── UN & international agency metadata ───────────────────────
-// logoSvg: inline SVG data URI — no network dependency, always renders.
-// Each is a 44×44 circle in the agency brand colour with white bold acronym.
+// _mkLogo: fallback SVG emblem (circle + white acronym) used when no
+// official logo is available in window.PARTNER_LOGOS.
 function _mkLogo(abbr, fill, fs){
   fs = fs||12;
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'>`+
     `<circle cx='22' cy='22' r='20' fill='${fill}'/>`+
-    `<text x='22' y='${22+fs*0.38}' text-anchor='middle' dominant-baseline='middle' `+
+    `<text x='22' y='22' text-anchor='middle' dominant-baseline='middle' `+
     `fill='white' font-family='Arial,Helvetica,sans-serif' font-weight='900' font-size='${fs}' letter-spacing='0.5'>${abbr}</text>`+
     `</svg>`;
   return 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+// getLogo(key): returns official logo data URI from partner_logos.js if loaded,
+// otherwise falls back to the inline SVG emblem.
+function getLogo(key, fallbackSvg){
+  return (window.PARTNER_LOGOS && window.PARTNER_LOGOS[key]) || fallbackSvg;
 }
 const UN_AGENCY_META = {
   "WFP":        {name:"World Food Programme",           color:"#009EDB", bg:"#E3F4FD", logo:_mkLogo("WFP","#009EDB"),     siteUrl:"https://www.wfp.org/"},
@@ -3540,21 +3546,25 @@ function renderImplementerLogos(str, compact=false){
     const metaKey = PARTNER_ALIASES[name.trim().toUpperCase()] || null;
     const meta    = metaKey ? (UN_AGENCY_META[metaKey] || null) : null;
     if(meta){
-      // Inline SVG logo — guaranteed to render, zero network dependency
-      const logoImg = `<img src="${meta.logo}" width="${sz}" height="${sz}"
-        alt="${metaKey}" title="${meta.name}"
-        style="width:${sz}px;height:${sz}px;border-radius:50%;display:block;flex-shrink:0">`;
-      // English non-compact: logo + org name. Arabic: logo only.
+      // getLogo() prefers official logo from partner_logos.js, falls back to SVG emblem
+      const logoSrc = getLogo(metaKey, meta.logo);
+      const isOfficial = window.PARTNER_LOGOS && window.PARTNER_LOGOS[metaKey];
+      // Official logos: natural aspect ratio, no forced circle. SVG emblems: circle.
+      const imgStyle = isOfficial
+        ? `max-width:${compact?60:90}px;max-height:${sz}px;width:auto;height:auto;display:block;flex-shrink:0;object-fit:contain`
+        : `width:${sz}px;height:${sz}px;border-radius:50%;display:block;flex-shrink:0`;
+      const logoImg = `<img src="${logoSrc}" height="${sz}" alt="${metaKey}" title="${meta.name}"
+        style="${imgStyle}">`;
+      // English non-compact: logo + org name. Arabic: logo only (no English text).
       const label = (!compact && !ar)
         ? `<span style="font-size:11px;font-weight:500;color:#374151;white-space:nowrap;line-height:1.2">${name}</span>`
         : '';
       return `<a href="${meta.siteUrl}" target="_blank" rel="noopener" title="${meta.name}"
         style="display:inline-flex;align-items:center;gap:6px;
-               padding:${compact?'3px':'5px 8px'};
-               background:${meta.bg};border:1px solid ${meta.color}33;border-radius:${compact?'50%':'8px'};
+               padding:${compact?'4px':'6px 10px'};
+               background:${meta.bg};border:1px solid ${meta.color}33;border-radius:8px;
                text-decoration:none;flex-shrink:0">${logoImg}${label}</a>`;
     } else {
-      // Unknown partner — plain pill
       return `<span style="display:inline-flex;align-items:center;
         padding:${compact?'3px 8px':'5px 10px'};
         background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;
