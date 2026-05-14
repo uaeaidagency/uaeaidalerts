@@ -324,13 +324,9 @@ def _send_submission_alert(
     attachments = [p for p in (exec_pdf, brief_pdf) if p]
 
     subject = _format_submission_email_subject(sub)
-    if test_prefix:
-        subject = f"[TEST] {subject}"
     # Pass the brief PDF name to the email body so the footer can reference it.
     email_body = _format_submission_email_body(sub, exec_pdf or "", dashboard_button=dashboard_button)
     telegram_body = _format_submission_telegram_body(sub, dashboard_link=dashboard_link)
-    if test_prefix:
-        telegram_body = "🧪 <b>[TEST]</b> ⤵\n\n" + telegram_body
 
     email_ok = tg_ok = True
     if recipients:
@@ -457,12 +453,8 @@ def _send_approval_alert(
     attachments = [p for p in (exec_pdf, brief_pdf) if p]
 
     subject = _format_approval_email_subject(approval)
-    if test_prefix:
-        subject = f"[TEST] {subject}"
     email_body = _format_approval_email_body(approval, exec_pdf or "", dashboard_button=dashboard_button)
     telegram_body = _format_approval_telegram_body(approval, dashboard_link=dashboard_link)
-    if test_prefix:
-        telegram_body = "🧪 <b>[TEST]</b> ⤵\n\n" + telegram_body
 
     email_ok = tg_ok = True
     if recipients:
@@ -826,24 +818,13 @@ def test_email(crisis_id: Optional[str] = None) -> int:
     subject = config.get(
         "subject_template", "[UAE Aid · Tier {tier} Alert] {country} — {crisis_id}"
     ).format(country=target.country, crisis_id=target.crisis_id, tier=target.decision_tier)
-    subject = f"[TEST] {subject}"
     email_body = _format_email_body(
         target, previous_tier=target.decision_tier + 1, pdf_path=pdf_path,
         dashboard_button=dashboard_button,
     )
-    email_body = (
-        "<p style='background:#FFF4D6;border:1px solid #E5C46A;padding:8px 12px;"
-        "border-radius:6px;font-size:12px;color:#7A5500;'>"
-        "<b>TEST MESSAGE</b> — sent manually via <code>run_check.py --test-email</code>. "
-        "Crisis state is NOT modified by this command."
-        "</p>" + email_body
-    )
-    telegram_body = (
-        "🧪 <b>[TEST]</b> ⤵\n\n"
-        + _format_telegram_body(
-            target, previous_tier=target.decision_tier + 1,
-            dashboard_link=dashboard_link,
-        )
+    telegram_body = _format_telegram_body(
+        target, previous_tier=target.decision_tier + 1,
+        dashboard_link=dashboard_link,
     )
 
     email_ok = tg_ok = True
