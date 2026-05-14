@@ -27,6 +27,8 @@ Conservative rules
     • Fields not covered by any API are left untouched:
         Children Malnourished, Health Facilities Damaged,
         Shelter Needs, WASH Access Below Std, Access Constraints.
+    • Manual Fields Verified date is never overwritten — it records
+      when a human last reviewed the four manually-curated fields.
 
 DEPENDENCIES: Standard library only.
               ACLED requires ACLED_API_KEY + ACLED_EMAIL env vars (GitHub Secrets).
