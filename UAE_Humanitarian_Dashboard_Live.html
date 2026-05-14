@@ -6516,42 +6516,61 @@ function renderTierMovements(){
   const crises = (STATE.crises||[]).filter(c=>c.tier<=2 && !/stabiliz/i.test(c.status||'')).sort((a,b)=>a.tier-b.tier||b.score-a.score);
   const el = document.getElementById('tierMovements');
   const ct = document.getElementById('tierMovCount');
+  const panelTitle = document.querySelector('#tierMovementsSection h3 span:first-child');
+  if(panelTitle) panelTitle.textContent = ar ? 'الفئة 1 و2 — التصعيدات ذات الأولوية' : 'Tier 1 & 2 — Priority Escalations';
   if(!el) return;
   if(!crises.length){
-    el.innerHTML = '<div style="color:var(--grey);font-size:13px;padding:4px 0">No Tier 1 or Tier 2 crises at this time.</div>';
+    el.innerHTML = `<div style="color:var(--grey);font-size:13px;padding:4px 0">${ar?'لا توجد أزمات من الفئة 1 أو 2 في الوقت الحالي.':'No Tier 1 or Tier 2 crises at this time.'}</div>`;
     if(ct) ct.textContent = '';
     return;
   }
-  if(ct) ct.textContent = crises.length + (ar?' دولة':crises.length===1?' country':' countries');
+  if(ct) ct.textContent = crises.length + (ar ? ' دولة' : crises.length===1?' country':' countries');
+
+  const STATUS_AR = {
+    'escalating': 'تصاعد',
+    'active':     'نشط',
+    'improving':  'يتحسن',
+  };
 
   const rows = crises.map(c=>{
     const t1 = c.tier===1;
-    const clr  = t1 ? '#991B1B' : '#9A3412';
-    const badge = t1 ? '#DC2626' : '#EA580C';
-    const badgeTxt = t1 ? 'T1' : 'T2';
+    const clr   = t1 ? '#991B1B' : '#9A3412';
+    const badge  = t1 ? '#DC2626' : '#EA580C';
+    const badgeTxt = t1
+      ? (ar ? 'ف1' : 'T1')
+      : (ar ? 'ف2' : 'T2');
 
     const statusLow = (c.status||'').toLowerCase();
     let dirIcon, dirClr;
-    if(statusLow.includes('escalat'))                          { dirIcon='↑'; dirClr='#DC2626'; }
-    else if(statusLow.includes('stabiliz')||statusLow.includes('improv')){ dirIcon='↓'; dirClr='#059669'; }
-    else                                                        { dirIcon='→'; dirClr='#D97706'; }
+    if(statusLow.includes('escalat'))                                      { dirIcon='↑'; dirClr='#DC2626'; }
+    else if(statusLow.includes('stabiliz')||statusLow.includes('improv')) { dirIcon='↓'; dirClr='#059669'; }
+    else                                                                    { dirIcon='→'; dirClr='#D97706'; }
+
+    const statusLabel = ar
+      ? (statusLow.includes('escalat') ? 'تصاعد' : statusLow.includes('stabiliz')||statusLow.includes('improv') ? 'يتحسن' : 'نشط')
+      : c.status;
 
     const hist = (RESPONSE_HISTORY||[])
       .filter(h=>h.country===c.country)
       .sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
-    // Truncate cause to ~60 chars for snapshot brevity
-    const fullCause = (hist&&hist.trigger)||c.notes||'—';
+    const fullCause = (ar && c.notes_ar) || (hist&&hist.trigger) || c.notes || '—';
     const cause = fullCause.length > 60 ? fullCause.slice(0,58)+'…' : fullCause;
 
+    const countryDisplay = ar ? (tx(c.country,'countries')||c.country) : c.country;
+    const regionDisplay  = ar ? (tx(c.region,'regions')||c.region) : c.region;
+    const scoreWord      = ar ? 'النقاط' : 'Score';
+    const sevWord        = ar ? 'الخطورة' : 'Sev';
+
     const iso = iso2Of(c.country);
-    const flag = iso ? `<img src="https://flagcdn.com/w40/${iso.toLowerCase()}.png" alt="" style="width:18px;height:12px;object-fit:cover;border-radius:1px;vertical-align:middle;margin-right:4px">` : '';
+    const flagMargin = ar ? 'margin-left:4px;margin-right:0' : 'margin-right:4px';
+    const flag = iso ? `<img src="https://flagcdn.com/w40/${iso.toLowerCase()}.png" alt="" style="width:18px;height:12px;object-fit:cover;border-radius:1px;vertical-align:middle;${flagMargin}">` : '';
 
     return `
-    <div class="early-card" style="border-left-color:${badge};cursor:default">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+    <div class="early-card" style="border-left-color:${badge};cursor:default;${ar?'direction:rtl;text-align:right':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;flex-direction:${ar?'row-reverse':'row'}">
         <div>
-          <div class="country">${flag}${c.country}</div>
-          <div class="meta">${c.region} · Score ${c.score.toFixed(1)} · Sev ${c.severity}/5</div>
+          <div class="country">${ar?'':flag}${countryDisplay}${ar?flag:''}</div>
+          <div class="meta">${regionDisplay} · ${scoreWord} ${c.score.toFixed(1)} · ${sevWord} ${c.severity}/5</div>
         </div>
         <span style="background:${badge};color:#fff;font-size:10px;font-weight:800;
                      padding:2px 7px;border-radius:5px;flex-shrink:0">${badgeTxt}</span>
@@ -6559,7 +6578,7 @@ function renderTierMovements(){
       <div class="bar" style="margin-top:8px"><i style="width:${Math.min(100,c.score)}%;background:${badge}"></i></div>
       <div class="meta" style="margin-top:6px">
         <span style="color:${dirClr};font-weight:700">${dirIcon}</span>
-        ${c.status} ·
+        ${statusLabel} ·
         <span style="color:#374151">${cause}</span>
       </div>
     </div>`;
