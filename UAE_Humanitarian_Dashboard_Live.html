@@ -983,14 +983,16 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
     <span data-i18n="footerSources">Live data sources: ReliefWeb API · NASA EONET (earthquakes, floods, droughts, cyclones, hurricanes, wildfires, landslides, extreme heat) · GDACS · UN FTS (api.hpc.tools).</span>
     <span data-i18n="footerWeights"> Scoring weights: UAE Mandate 15% · Priority Country 15% · Severity 25% · Affected Pop 20% · Response Gap 15% · Media/Political 10%.</span>
     <br/><span data-i18n="footerCors">If the browser blocks cross-origin requests (CORS) for a feed, run refresh_data.py on a schedule — the dashboard will use the cached embedded_data.js snapshot as fallback.</span>
-    <br/><span data-i18n="footerCopyright">© UAE Aid Agency — Internal use.</span>
-    <div style="margin-top:16px;display:inline-flex;align-items:center;gap:14px;background:#fff;border:1px solid #e2e5ea;border-radius:10px;padding:10px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=https%3A%2F%2Ft.me%2Fuaeaidbot&color=0B2545&bgcolor=ffffff&format=png&qzone=1" alt="Telegram QR" style="width:80px;height:80px;border-radius:4px" onerror="this.style.display='none'">
-      <div style="text-align:left">
-        <div style="font-size:12px;font-weight:700;color:#0B2545;letter-spacing:.3px">Live Alerts on Telegram</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px">Scan or click to subscribe</div>
-        <a href="https://t.me/uaeaidbot" target="_blank" style="font-size:11px;color:#C9A96E;font-weight:600;text-decoration:none;margin-top:4px;display:inline-block">t.me/uaeaidbot ↗</a>
+    <div style="margin-top:16px;display:inline-flex;flex-direction:column;align-items:center;gap:0">
+      <div style="display:inline-flex;align-items:center;gap:14px;background:#fff;border:1px solid #e2e5ea;border-radius:10px;padding:10px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=https%3A%2F%2Ft.me%2Fuaeaidbot&color=0B2545&bgcolor=ffffff&format=png&qzone=1" alt="Telegram QR" style="width:80px;height:80px;border-radius:4px" onerror="this.style.display='none'">
+        <div style="text-align:left">
+          <div style="font-size:12px;font-weight:700;color:#0B2545;letter-spacing:.3px">Live Alerts on Telegram</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px">Scan or click to subscribe</div>
+          <a href="https://t.me/uaeaidbot" target="_blank" style="font-size:11px;color:#C9A96E;font-weight:600;text-decoration:none;margin-top:4px;display:inline-block">t.me/uaeaidbot ↗</a>
+        </div>
       </div>
+      <div style="margin-top:8px;font-size:11px;color:#6b7280">© UAE Aid Agency — Internal use.</div>
     </div>
   </div>
 </div>
