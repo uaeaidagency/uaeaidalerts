@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>UAE Aid Agency — Humanitarian Monitoring Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --navy:#0B2545; --navy-2:#13315C; --gold:#C8A951; --gold-2:#A88A3F;
+  --red:#B81D24; --amber:#E07A00; --yellow:#E0B500; --green:#2E7D32;
+  --grey:#6B7280; --bg:#F5F6F8; --card:#FFFFFF; --line:#E5E7EB;
+  --tier1:#7A0F0F; --tier2:#B81D24; --tier3:#E07A00; --tier4:#E0B500; --tier5:#9AA0A6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;
+  background:var(--bg); color:#1F2937; min-height:100vh;
+}
+.app{max-width:1500px;margin:0 auto;padding:18px}
+
+/* Header */
+.hdr{
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);
+  color:#fff;border-radius:14px;padding:22px 26px;
+  display:flex;align-items:center;gap:22px;
+  box-shadow:0 6px 18px rgba(11,37,69,.18);
+  border-top:4px solid var(--gold);
+}
+.hdr .crest{
+  width:62px;height:62px;border-radius:50%;background:var(--gold);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;color:var(--navy);font-size:22px;flex-shrink:0;
+  box-shadow:inset 0 0 0 3px #fff, 0 2px 6px rgba(0,0,0,.2);
+}
+.hdr h1{font-size:22px;font-weight:600;letter-spacing:.3px}
+.hdr h2{font-size:14px;font-weight:400;opacity:.85;margin-top:3px}
+.hdr .right{margin-left:auto;text-align:right;font-size:13px;opacity:.92}
+.hdr .right .live{color:#7CFFB0;font-weight:600;letter-spacing:.5px}
+.dot{display:inline-block;width:8px;height:8px;background:#7CFFB0;border-radius:50%;
+     margin-right:6px;animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* KPI tiles */
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:18px}
+.kpi{
+  background:var(--card);border-radius:12px;padding:14px 16px;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:4px solid var(--navy);
+}
+.kpi .lbl{font-size:11px;color:var(--grey);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.kpi .val{font-size:26px;font-weight:700;color:var(--navy);margin-top:4px;line-height:1.1}
+.kpi .sub{font-size:11px;color:var(--grey);margin-top:2px}
+.kpi.tier1{border-color:var(--tier1)} .kpi.tier1 .val{color:var(--tier1)}
+.kpi.tier2{border-color:var(--tier2)} .kpi.tier2 .val{color:var(--tier2)}
+.kpi.gold{border-color:var(--gold)} .kpi.gold .val{color:var(--gold-2)}
+
+/* Section cards */
+.section{background:var(--card);border-radius:12px;padding:18px 20px;margin-top:14px;
+         box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.section h3{color:var(--navy);font-size:15px;letter-spacing:.4px;text-transform:uppercase;
+            margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--gold);
+            display:flex;align-items:center;justify-content:space-between}
+.section h3 .count{font-size:12px;color:var(--grey);font-weight:500;text-transform:none;letter-spacing:0}
+
+/* Filters */
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.filter-grp{display:flex;align-items:center;gap:6px}
+.filter-grp label{font-size:11px;color:var(--grey);text-transform:uppercase;font-weight:600;letter-spacing:.4px}
+select,input[type=text]{
+  font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);
+  border-radius:8px;background:#fff;color:#1F2937;cursor:pointer
+}
+select:focus,input:focus{outline:2px solid var(--gold);outline-offset:1px}
+input[type=text]{cursor:text;min-width:200px}
+
+/* Two-column layout */
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-top:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px}
+
+/* Crisis table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{
+  text-align:left;padding:10px 8px;background:var(--navy);color:#fff;
+  font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+  position:sticky;top:0;cursor:pointer;user-select:none;white-space:nowrap;
+}
+th:hover{background:var(--navy-2)}
+th .sort-ind{margin-left:4px;opacity:.6;font-size:10px}
+td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:hover td{background:#FAFAFB}
+tr.selected td{background:#FEF7E3}
+
+.country{font-weight:600;color:var(--navy)}
+.flag{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.flag.escalating{background:var(--red);animation:pulse 2s infinite}
+.flag.active{background:var(--amber)}
+.flag.stabilizing{background:var(--green)}
+.flag.recovery{background:#3B82F6}
+
+.tier{
+  display:inline-block;padding:3px 9px;border-radius:6px;color:#fff;
+  font-weight:700;font-size:11px;letter-spacing:.5px;min-width:62px;text-align:center;
+}
+.tier-1{background:var(--tier1)} .tier-2{background:var(--tier2)}
+.tier-3{background:var(--tier3)} .tier-4{background:var(--tier4);color:#1F2937}
+.tier-5{background:var(--tier5)}
+
+.sev{display:inline-block;width:22px;height:22px;border-radius:50%;color:#fff;
+     font-weight:700;font-size:11px;text-align:center;line-height:22px}
+.sev-5{background:#7A0F0F} .sev-4{background:var(--red)}
+.sev-3{background:var(--amber)} .sev-2{background:var(--yellow);color:#1F2937} .sev-1{background:#9AA0A6}
+
+.score-bar{display:inline-block;width:60px;height:8px;background:var(--line);
+           border-radius:4px;overflow:hidden;vertical-align:middle;margin-right:6px}
+.score-bar i{display:block;height:100%}
+
+/* Tier badges legend */
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--grey);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+
+/* Drawer (detail panel) */
+.drawer{
+  position:fixed;top:0;right:-560px;width:540px;height:100vh;background:#fff;
+  box-shadow:-6px 0 24px rgba(0,0,0,.18);transition:right .25s ease;z-index:50;
+  overflow-y:auto;padding:0;display:flex;flex-direction:column;
+}
+.drawer.open{right:0}
+.drawer-hdr{
+  background:linear-gradient(135deg,var(--navy),var(--navy-2));color:#fff;padding:18px 22px;
+  display:flex;align-items:flex-start;gap:12px;border-top:4px solid var(--gold);
+}
+.drawer-hdr h2{font-size:20px;margin-bottom:4px}
+.drawer-hdr .meta{font-size:12px;opacity:.85}
+.drawer-hdr .close{margin-left:auto;background:transparent;border:0;color:#fff;font-size:24px;cursor:pointer}
+.drawer-body{padding:18px 22px;flex:1}
+.drawer-body h4{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--grey);
+                margin-top:14px;margin-bottom:6px;font-weight:600}
+.drawer-body h4:first-child{margin-top:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+.kv b{color:var(--navy);font-weight:600}
+.score-breakdown{margin-top:6px}
+.score-breakdown .row{display:grid;grid-template-columns:140px 1fr 50px;align-items:center;
+                      gap:10px;font-size:12px;margin-bottom:6px}
+.score-breakdown .row .bar{height:10px;background:var(--line);border-radius:5px;overflow:hidden}
+.score-breakdown .row .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--navy),var(--gold))}
+.indicators{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.indicator{background:#F9FAFB;border-radius:8px;padding:10px 12px;border-left:3px solid var(--gold)}
+.indicator .l{font-size:10px;color:var(--grey);text-transform:uppercase;letter-spacing:.5px}
+.indicator .v{font-size:16px;font-weight:700;color:var(--navy);margin-top:2px}
+.action-box{background:#FEF7E3;border:1px solid var(--gold);border-radius:8px;padding:12px 14px;
+            margin-top:10px;font-size:13px;line-height:1.4}
+.action-box b{color:var(--navy)}
+.btn{background:var(--navy);color:#fff;border:0;padding:9px 14px;border-radius:8px;
+     font-weight:600;font-size:12px;cursor:pointer;letter-spacing:.4px}
+.btn:hover{background:var(--navy-2)}
+.btn.gold{background:var(--gold);color:var(--navy)}
+.btn.gold:hover{background:var(--gold-2);color:#fff}
+.btn-row{display:flex;gap:8px;margin-top:14px}
+
+/* Charts container */
+.chart-wrap{position:relative;height:240px}
+
+/* Footer */
+.footer{margin-top:18px;padding:14px;font-size:11px;color:var(--grey);text-align:center}
+
+/* Responsive */
+@media (max-width:1100px){
+  .kpis{grid-template-columns:repeat(3,1fr)}
+  .grid2,.grid3{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="crest">UAE</div>
+    <div>
+      <h1>UAE Aid Agency — Humanitarian Monitoring Dashboard</h1>
+      <h2>Global Conflict & Disaster Tracker · Response Decision Support</h2>
+    </div>
+    <div class="right">
+      <div><span class="dot"></span><span class="live">LIVE MONITOR</span></div>
+      <div id="updated">Updated: <span id="updTime"></span></div>
+    </div>
+  </div>
+
+  <!-- KPI tiles -->
+  <div class="kpis" id="kpis"></div>
+
+  <!-- Top Priority Crises -->
+  <div class="section">
+    <h3>
+      <span>Top Priority Crises</span>
+      <span class="count" id="rowCount"></span>
+    </h3>
+
+    <div class="filters">
+      <div class="filter-grp">
+        <label>Search</label>
+        <input type="text" id="fSearch" placeholder="Country, type, notes…" />
+      </div>
+      <div class="filter-grp">
+        <label>Region</label>
+        <select id="fRegion"></select>
+      </div>
+      <div class="filter-grp">
+        <label>Type</label>
+        <select id="fType"></select>
+      </div>
+      <div class="filter-grp">
+        <label>Tier</label>
+        <select id="fTier"></select>
+      </div>
+      <div class="filter-grp">
+        <label>Min severity</label>
+        <select id="fSev">
+          <option value="0">Any</option><option value="2">≥ 2</option><option value="3">≥ 3</option>
+          <option value="4">≥ 4</option><option value="5">5 only</option>
+        </select>
+      </div>
+      <div style="margin-left:auto">
+        <button class="btn gold" id="resetBtn">Reset filters</button>
+      </div>
+    </div>
+
+    <div style="max-height:540px;overflow-y:auto;border:1px solid var(--line);border-radius:8px">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th data-key="country">Country <span class="sort-ind">↕</span></th>
+            <th data-key="region">Region <span class="sort-ind">↕</span></th>
+            <th data-key="type">Type <span class="sort-ind">↕</span></th>
+            <th data-key="severity">Sev <span class="sort-ind">↕</span></th>
+            <th data-key="pin">PIN (000) <span class="sort-ind">↕</span></th>
+            <th data-key="displaced">Displaced <span class="sort-ind">↕</span></th>
+            <th data-key="funded">Funded % <span class="sort-ind">↕</span></th>
+            <th data-key="score">Score <span class="sort-ind">▼</span></th>
+            <th data-key="tier">Tier <span class="sort-ind">↕</span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="legend">
+      <span><span class="flag escalating"></span> Escalating</span>
+      <span><span class="flag active"></span> Active</span>
+      <span><span class="flag stabilizing"></span> Stabilizing</span>
+      <span><span class="flag recovery"></span> Recovery</span>
+      &nbsp;·&nbsp;
+      <span><span class="tier tier-1">TIER 1</span> Immediate response (≥75)</span>
+      <span><span class="tier tier-2">TIER 2</span> Strong (60–74)</span>
+      <span><span class="tier tier-3">TIER 3</span> Targeted (45–59)</span>
+      <span><span class="tier tier-4">TIER 4</span> Monitor (30–44)</span>
+      <span><span class="tier tier-5">TIER 5</span> Track (&lt;30)</span>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid3">
+    <div class="section">
+      <h3><span>People in Need by Region</span></h3>
+      <div class="chart-wrap"><canvas id="ch_region"></canvas></div>
+    </div>
+    <div class="section">
+      <h3><span>Crises by Type</span></h3>
+      <div class="chart-wrap"><canvas id="ch_type"></canvas></div>
+    </div>
+    <div class="section">
+      <h3><span>Score vs Funding Gap</span></h3>
+      <div class="chart-wrap"><canvas id="ch_scatter"></canvas></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Sources: OCHA HDX · ReliefWeb · ACAPS · ACLED · IPC · UNHCR · WHO · EM-DAT · GDACS · WFP HungerMap · FTS.
+    Scoring weights: UAE Mandate 15% · Priority Country 15% · Severity 25% · Affected Pop 20% · Response Gap 15% · Media/Political 10%.
+    © UAE Aid Agency — Internal use.
+  </div>
+</div>
+
+<!-- DRAWER (detail panel) -->
+<div class="drawer" id="drawer">
+  <div class="drawer-hdr">
+    <div>
+      <h2 id="dCountry">—</h2>
+      <div class="meta" id="dMeta">—</div>
+    </div>
+    <button class="close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body" id="dBody"></div>
+</div>
+
+<script>
+// ============================================================
+// DATA: Active crises with full humanitarian indicators
+// In production this is hydrated from connectors (ReliefWeb,
+// OCHA HDX, ACAPS, ACLED, GDACS, IPC, UNHCR, etc.)
+// ============================================================
+const CRISES = [
+ {id:"C-001",country:"Sudan",region:"Africa",type:"Conflict",status:"Escalating",start:"2023-04-15",severity:5,inform:4.6,
+  pin:30400,displaced:12700,casualties:25,ipc3:17800,malnutrition:730,healthDmg:65,outbreak:5,shelter:9100,washGap:70,funded:18,access:5,priorityTier:1,
+  notes:"RSF-SAF war; mass displacement; famine declared in El Fasher region."},
+ {id:"C-002",country:"Palestine (Gaza)",region:"MENA",type:"Conflict",status:"Active",start:"2023-10-07",severity:5,inform:4.9,
+  pin:2200,displaced:1900,casualties:65,ipc3:1200,malnutrition:290,healthDmg:80,outbreak:5,shelter:2000,washGap:85,funded:35,access:5,priorityTier:1,
+  notes:"Continuing humanitarian crisis; reconstruction needs; food and health system collapse."},
+ {id:"C-003",country:"Yemen",region:"MENA",type:"Complex",status:"Active",start:"2014-09-21",severity:4,inform:4.4,
+  pin:18200,displaced:4500,casualties:30,ipc3:17000,malnutrition:540,healthDmg:45,outbreak:4,shelter:5000,washGap:55,funded:30,access:4,priorityTier:1,
+  notes:"Protracted conflict; cholera resurgence; 18M+ in need."},
+ {id:"C-004",country:"Syria",region:"MENA",type:"Complex",status:"Stabilizing",start:"2011-03-15",severity:4,inform:4.2,
+  pin:16700,displaced:7200,casualties:0,ipc3:7000,malnutrition:600,healthDmg:55,outbreak:4,shelter:6500,washGap:50,funded:25,access:3,priorityTier:1,
+  notes:"Post-transition recovery; sanctions easing; refugee returns gathering pace."},
+ {id:"C-005",country:"Ukraine",region:"Europe",type:"Conflict",status:"Active",start:"2022-02-24",severity:4,inform:4.0,
+  pin:14600,displaced:5800,casualties:80,ipc3:0,malnutrition:0,healthDmg:30,outbreak:2,shelter:4500,washGap:25,funded:60,access:3,priorityTier:3,
+  notes:"Continuing war; energy infrastructure damage; winter needs."},
+ {id:"C-006",country:"DR Congo",region:"Africa",type:"Conflict",status:"Escalating",start:"2021-03-01",severity:4,inform:4.3,
+  pin:25400,displaced:7300,casualties:15,ipc3:24800,malnutrition:450,healthDmg:35,outbreak:4,shelter:5000,washGap:60,funded:28,access:4,priorityTier:3,
+  notes:"M23/eastern DRC conflict; massive displacement in North/South Kivu."},
+ {id:"C-007",country:"Afghanistan",region:"South Asia",type:"Complex",status:"Active",start:"2021-08-15",severity:4,inform:4.5,
+  pin:23700,displaced:6200,casualties:5,ipc3:14000,malnutrition:875,healthDmg:40,outbreak:4,shelter:4500,washGap:55,funded:32,access:3,priorityTier:2,
+  notes:"Economic collapse; food insecurity; women's rights restrictions; earthquakes."},
+ {id:"C-008",country:"Myanmar",region:"Southeast Asia",type:"Conflict",status:"Active",start:"2021-02-01",severity:4,inform:4.1,
+  pin:19800,displaced:3500,casualties:10,ipc3:5400,malnutrition:220,healthDmg:40,outbreak:4,shelter:2800,washGap:50,funded:22,access:5,priorityTier:3,
+  notes:"Civil war; Rakhine crisis; cyclone aftermath."},
+ {id:"C-009",country:"Haiti",region:"Americas",type:"Complex",status:"Escalating",start:"2024-02-29",severity:4,inform:4.0,
+  pin:5500,displaced:1100,casualties:8,ipc3:5100,malnutrition:115,healthDmg:35,outbreak:4,shelter:600,washGap:65,funded:28,access:5,priorityTier:3,
+  notes:"Gang violence; political vacuum; food crisis."},
+ {id:"C-010",country:"Somalia",region:"Africa",type:"Complex",status:"Active",start:"2011-01-01",severity:4,inform:4.3,
+  pin:6900,displaced:3800,casualties:4,ipc3:6500,malnutrition:460,healthDmg:30,outbreak:4,shelter:2500,washGap:55,funded:38,access:4,priorityTier:2,
+  notes:"Drought-conflict-displacement nexus; Al-Shabaab insurgency."},
+ {id:"C-011",country:"South Sudan",region:"Africa",type:"Complex",status:"Active",start:"2013-12-15",severity:4,inform:4.2,
+  pin:9000,displaced:4400,casualties:3,ipc3:7800,malnutrition:320,healthDmg:40,outbreak:4,shelter:2200,washGap:60,funded:42,access:4,priorityTier:3,
+  notes:"Inter-communal violence; food insecurity; spillover from Sudan."},
+ {id:"C-012",country:"Ethiopia",region:"Africa",type:"Complex",status:"Active",start:"2020-11-04",severity:3,inform:3.7,
+  pin:22000,displaced:4500,casualties:2,ipc3:18000,malnutrition:850,healthDmg:30,outbreak:3,shelter:4000,washGap:50,funded:35,access:3,priorityTier:2,
+  notes:"Tigray recovery; Amhara conflict; Oromia tensions; drought."},
+ {id:"C-013",country:"Lebanon",region:"MENA",type:"Complex",status:"Active",start:"2019-10-17",severity:3,inform:3.5,
+  pin:3800,displaced:1200,casualties:1,ipc3:600,malnutrition:50,healthDmg:25,outbreak:3,shelter:800,washGap:35,funded:50,access:2,priorityTier:1,
+  notes:"Economic crisis; refugees; cross-border tensions."},
+ {id:"C-014",country:"Burkina Faso",region:"Africa",type:"Conflict",status:"Escalating",start:"2019-01-01",severity:4,inform:4.0,
+  pin:6300,displaced:2100,casualties:2,ipc3:3400,malnutrition:180,healthDmg:35,outbreak:4,shelter:1500,washGap:45,funded:40,access:4,priorityTier:3,
+  notes:"Sahel jihadist insurgency; mass displacement."},
+ {id:"C-015",country:"Mali",region:"Africa",type:"Conflict",status:"Active",start:"2012-01-01",severity:4,inform:3.9,
+  pin:7100,displaced:1800,casualties:1,ipc3:1900,malnutrition:95,healthDmg:25,outbreak:3,shelter:900,washGap:40,funded:45,access:4,priorityTier:3,
+  notes:"Sahel insurgency; political transition tensions."},
+ {id:"C-016",country:"Burundi",region:"Africa",type:"Disaster",status:"Recovery",start:"2024-04-01",severity:2,inform:2.8,
+  pin:1700,displaced:220,casualties:0,ipc3:700,malnutrition:30,healthDmg:15,outbreak:3,shelter:250,washGap:35,funded:65,access:2,priorityTier:0,
+  notes:"Floods recovery; cholera outbreak."},
+ {id:"C-017",country:"Bangladesh",region:"South Asia",type:"Disaster+Refugee",status:"Active",start:"2017-08-25",severity:3,inform:3.6,
+  pin:1300,displaced:1000,casualties:0,ipc3:250,malnutrition:60,healthDmg:10,outbreak:3,shelter:950,washGap:30,funded:55,access:2,priorityTier:2,
+  notes:"Rohingya refugee response; recurring floods/cyclones."},
+ {id:"C-018",country:"Pakistan",region:"South Asia",type:"Disaster",status:"Active",start:"2025-08-10",severity:3,inform:3.5,
+  pin:8200,displaced:1500,casualties:1,ipc3:3500,malnutrition:280,healthDmg:20,outbreak:3,shelter:1100,washGap:30,funded:48,access:2,priorityTier:2,
+  notes:"Recurrent monsoon floods; KP earthquake aftermath."},
+ {id:"C-019",country:"Türkiye",region:"MENA",type:"Disaster",status:"Recovery",start:"2023-02-06",severity:2,inform:2.5,
+  pin:9000,displaced:2000,casualties:0,ipc3:0,malnutrition:0,healthDmg:15,outbreak:2,shelter:1800,washGap:15,funded:75,access:1,priorityTier:2,
+  notes:"Earthquake reconstruction continuing; Syrian refugee burden."},
+ {id:"C-020",country:"Mozambique",region:"Africa",type:"Disaster",status:"Active",start:"2024-12-15",severity:3,inform:3.4,
+  pin:2400,displaced:600,casualties:0,ipc3:1300,malnutrition:90,healthDmg:20,outbreak:3,shelter:700,washGap:40,funded:55,access:2,priorityTier:3,
+  notes:"Cyclone Chido aftermath; cholera."},
+ {id:"C-021",country:"Libya",region:"MENA",type:"Complex",status:"Active",start:"2014-08-01",severity:3,inform:3.5,
+  pin:800,displaced:250,casualties:0,ipc3:50,malnutrition:10,healthDmg:25,outbreak:2,shelter:200,washGap:25,funded:60,access:3,priorityTier:1,
+  notes:"Political stalemate; migration crisis; Derna flood recovery."},
+ {id:"C-022",country:"Iraq",region:"MENA",type:"Recovery",status:"Stabilizing",start:"2014-06-10",severity:2,inform:2.7,
+  pin:1100,displaced:1200,casualties:0,ipc3:200,malnutrition:30,healthDmg:10,outbreak:2,shelter:400,washGap:20,funded:70,access:2,priorityTier:1,
+  notes:"IDP returns; minority reintegration."},
+ {id:"C-023",country:"Indonesia",region:"Southeast Asia",type:"Disaster",status:"Active",start:"2025-11-12",severity:3,inform:3.0,
+  pin:1400,displaced:400,casualties:1,ipc3:100,malnutrition:25,healthDmg:15,outbreak:2,shelter:350,washGap:25,funded:80,access:2,priorityTier:2,
+  notes:"Earthquake/tsunami response; volcanic activity."},
+ {id:"C-024",country:"Niger",region:"Africa",type:"Complex",status:"Active",start:"2023-07-26",severity:3,inform:3.6,
+  pin:4400,displaced:700,casualties:1,ipc3:3300,malnutrition:220,healthDmg:25,outbreak:3,shelter:1100,washGap:50,funded:42,access:4,priorityTier:3,
+  notes:"Sahel insurgency; political transition; food insecurity."},
+ {id:"C-025",country:"Sri Lanka",region:"South Asia",type:"Recovery",status:"Stabilizing",start:"2022-04-12",severity:2,inform:2.4,
+  pin:500,displaced:50,casualties:0,ipc3:0,malnutrition:10,healthDmg:5,outbreak:1,shelter:100,washGap:10,funded:85,access:1,priorityTier:0,
+  notes:"Economic recovery; food security improving."},
+];
+
+// Scoring weights (configurable)
+const WEIGHTS = {mandate:.15, priority:.15, severity:.25, pop:.20, gap:.15, media:.10};
+
+// Score helpers
+function priorityScoreComponent(tier){
+  if(tier===1) return 100;
+  if(tier===2) return 70;
+  if(tier===3) return 50;
+  return 20;
+}
+function popScore(pin){
+  if(pin<=0) return 0;
+  return Math.min(100, Math.log10(pin)*25);
+}
+function computeScore(c){
+  const mandate = 100; // all listed are within mandate
+  const priority = priorityScoreComponent(c.priorityTier);
+  const severity = c.severity*20;
+  const pop = popScore(c.pin);
+  const gap = Math.max(0, 100 - c.funded);
+  const media = c.access*20;
+  const total = mandate*WEIGHTS.mandate + priority*WEIGHTS.priority +
+                severity*WEIGHTS.severity + pop*WEIGHTS.pop +
+                gap*WEIGHTS.gap + media*WEIGHTS.media;
+  return {total: Math.round(total*10)/10, mandate, priority, severity, pop, gap, media};
+}
+function tierFor(score){
+  if(score>=75) return 1;
+  if(score>=60) return 2;
+  if(score>=45) return 3;
+  if(score>=30) return 4;
+  return 5;
+}
+function tierAction(t){
+  switch(t){
+    case 1: return "Immediate response — mobilize ERT, pledge within 7 days, deploy mission.";
+    case 2: return "Strong response — pledge within 14 days, partner with UN/IFRC/INGO.";
+    case 3: return "Targeted sector contribution (food, health, shelter, or WASH).";
+    case 4: return "Monitor — diplomatic engagement; small earmarked contribution if requested.";
+    case 5: return "Track only — re-assess weekly.";
+  }
+}
+
+// Enrich data with scores
+const enriched = CRISES.map(c => {
+  const s = computeScore(c);
+  return {...c, score:s.total, tier:tierFor(s.total), parts:s, action:tierAction(tierFor(s.total))};
+});
+
+// ============================================================
+// RENDER
+// ============================================================
+function fmt(n){
+  if(n>=1000) return (n/1000).toFixed(1)+'M';
+  if(n>=1) return n.toLocaleString();
+  return n;
+}
+function fmtThousands(n){ return n.toLocaleString(); }
+
+function renderKPIs(){
+  const t1 = enriched.filter(c=>c.tier===1).length;
+  const t2 = enriched.filter(c=>c.tier===2).length;
+  const pin = enriched.reduce((s,c)=>s+c.pin,0);
+  const disp = enriched.reduce((s,c)=>s+c.displaced,0);
+  const avgFund = Math.round(enriched.reduce((s,c)=>s+c.funded,0)/enriched.length);
+  const esc = enriched.filter(c=>c.status==="Escalating").length;
+
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="lbl">Crises tracked</div><div class="val">${enriched.length}</div><div class="sub">global</div></div>
+    <div class="kpi tier1"><div class="lbl">Tier 1 — immediate</div><div class="val">${t1}</div><div class="sub">≥ 75 priority score</div></div>
+    <div class="kpi tier2"><div class="lbl">Tier 2 — strong</div><div class="val">${t2}</div><div class="sub">60 – 74 priority score</div></div>
+    <div class="kpi gold"><div class="lbl">People in need</div><div class="val">${(pin/1000).toFixed(1)}M</div><div class="sub">aggregated PIN</div></div>
+    <div class="kpi"><div class="lbl">Displaced (IDP+Ref.)</div><div class="val">${(disp/1000).toFixed(1)}M</div><div class="sub">currently uprooted</div></div>
+    <div class="kpi"><div class="lbl">Avg appeal funded</div><div class="val">${avgFund}%</div><div class="sub">${esc} escalating</div></div>
+  `;
+}
+
+let sortKey='score', sortDir=-1;
+function applyFilters(){
+  const q = document.getElementById('fSearch').value.toLowerCase();
+  const reg = document.getElementById('fRegion').value;
+  const typ = document.getElementById('fType').value;
+  const tr  = document.getElementById('fTier').value;
+  const sv  = parseInt(document.getElementById('fSev').value,10);
+  let rows = enriched.filter(c=>{
+    if(reg && c.region!==reg) return false;
+    if(typ && c.type!==typ) return false;
+    if(tr && c.tier!==parseInt(tr,10)) return false;
+    if(sv && c.severity<sv) return false;
+    if(q){
+      const blob = (c.country+' '+c.type+' '+c.region+' '+c.notes).toLowerCase();
+      if(!blob.includes(q)) return false;
+    }
+    return true;
+  });
+  rows.sort((a,b)=>{
+    let va=a[sortKey], vb=b[sortKey];
+    if(typeof va==='string'){ va=va.toLowerCase(); vb=vb.toLowerCase(); }
+    if(va<vb) return -1*sortDir;
+    if(va>vb) return 1*sortDir;
+    return 0;
+  });
+  renderTable(rows);
+}
+
+function renderTable(rows){
+  const tb = document.getElementById('tbody');
+  tb.innerHTML = rows.map(c=>{
+    const scorePct = Math.min(100, c.score);
+    const scoreColor = c.tier===1?'var(--tier1)':c.tier===2?'var(--tier2)':c.tier===3?'var(--tier3)':c.tier===4?'var(--tier4)':'var(--tier5)';
+    return `
+    <tr onclick="openDrawer('${c.id}')">
+      <td class="country"><span class="flag ${c.status.toLowerCase()}"></span>${c.country}</td>
+      <td>${c.region}</td>
+      <td>${c.type}</td>
+      <td><span class="sev sev-${c.severity}">${c.severity}</span></td>
+      <td>${fmtThousands(c.pin)}</td>
+      <td>${fmtThousands(c.displaced)}</td>
+      <td>${c.funded}%</td>
+      <td><span class="score-bar"><i style="width:${scorePct}%;background:${scoreColor}"></i></span><b>${c.score.toFixed(1)}</b></td>
+      <td><span class="tier tier-${c.tier}">TIER ${c.tier}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('rowCount').textContent = rows.length + ' of ' + enriched.length + ' shown';
+}
+
+function populateFilters(){
+  function uniq(arr){return [...new Set(arr)].sort()}
+  const regions = uniq(enriched.map(c=>c.region));
+  const types = uniq(enriched.map(c=>c.type));
+  document.getElementById('fRegion').innerHTML = '<option value="">All</option>' + regions.map(r=>`<option>${r}</option>`).join('');
+  document.getElementById('fType').innerHTML   = '<option value="">All</option>' + types.map(t=>`<option>${t}</option>`).join('');
+  document.getElementById('fTier').innerHTML   = '<option value="">All</option>' +
+    [1,2,3,4,5].map(t=>`<option value="${t}">TIER ${t}</option>`).join('');
+}
+
+// Drawer
+function openDrawer(id){
+  const c = enriched.find(x=>x.id===id);
+  if(!c) return;
+  document.querySelectorAll('#tbody tr').forEach(tr=>tr.classList.remove('selected'));
+  document.getElementById('dCountry').textContent = c.country;
+  document.getElementById('dMeta').innerHTML =
+    `${c.type} · ${c.region} · since ${c.start} · severity <b>${c.severity}/5</b> · status <b>${c.status}</b>`;
+  const wPct = {
+    mandate: (c.parts.mandate*WEIGHTS.mandate),
+    priority: (c.parts.priority*WEIGHTS.priority),
+    severity: (c.parts.severity*WEIGHTS.severity),
+    pop: (c.parts.pop*WEIGHTS.pop),
+    gap: (c.parts.gap*WEIGHTS.gap),
+    media: (c.parts.media*WEIGHTS.media),
+  };
+  document.getElementById('dBody').innerHTML = `
+    <div class="action-box">
+      <b>UAE recommendation — TIER ${c.tier} (score ${c.score.toFixed(1)}):</b><br/>${c.action}
+    </div>
+
+    <h4>Priority score breakdown</h4>
+    <div class="score-breakdown">
+      ${[
+        ['UAE Mandate (15%)', c.parts.mandate, wPct.mandate],
+        ['UAE Priority Country (15%)', c.parts.priority, wPct.priority],
+        ['Crisis Severity (25%)', c.parts.severity, wPct.severity],
+        ['Affected Population (20%)', c.parts.pop, wPct.pop],
+        ['Response Gap (15%)', c.parts.gap, wPct.gap],
+        ['Media / Political (10%)', c.parts.media, wPct.media],
+      ].map(([label,raw,weighted])=>`
+        <div class="row">
+          <span>${label}</span>
+          <span class="bar"><i style="width:${Math.min(100,raw)}%"></i></span>
+          <span><b>+${weighted.toFixed(1)}</b></span>
+        </div>`).join('')}
+      <div class="row" style="border-top:1px dashed var(--line);padding-top:6px;margin-top:6px">
+        <span><b>Total priority score</b></span><span></span><span><b>${c.score.toFixed(1)}</b></span>
+      </div>
+    </div>
+
+    <h4>Humanitarian indicators</h4>
+    <div class="indicators">
+      <div class="indicator"><div class="l">People in Need</div><div class="v">${fmt(c.pin)}</div></div>
+      <div class="indicator"><div class="l">Displaced (IDP+Ref.)</div><div class="v">${fmt(c.displaced)}</div></div>
+      <div class="indicator"><div class="l">IPC Phase 3+</div><div class="v">${fmt(c.ipc3)}</div></div>
+      <div class="indicator"><div class="l">Children malnourished</div><div class="v">${fmt(c.malnutrition)}</div></div>
+      <div class="indicator"><div class="l">Health facilities damaged</div><div class="v">${c.healthDmg}%</div></div>
+      <div class="indicator"><div class="l">Outbreak risk</div><div class="v">${c.outbreak}/5</div></div>
+      <div class="indicator"><div class="l">Shelter needs</div><div class="v">${fmt(c.shelter)}</div></div>
+      <div class="indicator"><div class="l">WASH below standard</div><div class="v">${c.washGap}%</div></div>
+      <div class="indicator"><div class="l">Appeal funded</div><div class="v">${c.funded}%</div></div>
+      <div class="indicator"><div class="l">Access constraints</div><div class="v">${c.access}/5</div></div>
+    </div>
+
+    <h4>Context</h4>
+    <div style="font-size:13px;line-height:1.5;color:#374151">${c.notes}</div>
+
+    <h4>Suggested UAE channels</h4>
+    <div style="font-size:13px;line-height:1.5;color:#374151">
+      ${recommendChannels(c)}
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" onclick="copyBrief('${c.id}')">Copy decision brief</button>
+      <button class="btn gold" onclick="window.print()">Print</button>
+    </div>
+  `;
+  document.getElementById('drawer').classList.add('open');
+}
+function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); }
+function recommendChannels(c){
+  const out = [];
+  if(c.outbreak>=4 || c.healthDmg>=40) out.push("WHO / UAE Red Crescent — medical airbridge and health partner package");
+  if(c.ipc3>=1000 || c.malnutrition>=100) out.push("WFP / UNICEF — food assistance and nutrition treatment");
+  if(c.shelter>=500) out.push("UNHCR / IOM — shelter, NFI kits, site management");
+  if(c.washGap>=50) out.push("UNICEF / IFRC — emergency WASH packages");
+  if(c.funded<40) out.push("OCHA pooled fund (CBPF / CERF) — fastest disbursement with low overhead");
+  if(c.priorityTier===1) out.push("Bilateral channel via UAE Embassy & UAE Red Crescent in-country office");
+  if(out.length===0) out.push("Maintain watching brief; coordinate via OCHA regional office.");
+  return '<ul style="padding-left:18px">' + out.map(x=>`<li>${x}</li>`).join('') + '</ul>';
+}
+function copyBrief(id){
+  const c = enriched.find(x=>x.id===id);
+  const text =
+`UAE AID AGENCY — RESPONSE BRIEF
+Country:   ${c.country}  (${c.region})
+Crisis:    ${c.type}  ·  since ${c.start}  ·  status ${c.status}
+Severity:  ${c.severity}/5      INFORM: ${c.inform}
+Score:     ${c.score.toFixed(1)} → TIER ${c.tier}
+Action:    ${c.action}
+
+Indicators
+  PIN:           ${fmtThousands(c.pin)}k
+  Displaced:     ${fmtThousands(c.displaced)}k
+  IPC Phase 3+:  ${fmtThousands(c.ipc3)}k
+  Malnutrition:  ${fmtThousands(c.malnutrition)}k
+  Health damage: ${c.healthDmg}%   Outbreak risk: ${c.outbreak}/5
+  Shelter need:  ${fmtThousands(c.shelter)}k
+  WASH gap:      ${c.washGap}%
+  Appeal funded: ${c.funded}%      Access: ${c.access}/5
+
+Context: ${c.notes}`;
+  navigator.clipboard.writeText(text).then(()=>{
+    const b = event.target; const old=b.textContent;
+    b.textContent='Copied ✓'; setTimeout(()=>b.textContent=old,1400);
+  });
+}
+
+// Sort headers
+document.querySelectorAll('#tbl th').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const key = th.dataset.key;
+    if(sortKey===key) sortDir*=-1; else { sortKey=key; sortDir=-1; }
+    document.querySelectorAll('#tbl th .sort-ind').forEach(s=>s.textContent='↕');
+    th.querySelector('.sort-ind').textContent = sortDir===-1?'▼':'▲';
+    applyFilters();
+  });
+});
+
+// Filter listeners
+['fSearch','fRegion','fType','fTier','fSev'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',applyFilters);
+  document.getElementById(id).addEventListener('change',applyFilters);
+});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  document.getElementById('fSearch').value='';
+  ['fRegion','fType','fTier'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fSev').value='0';
+  applyFilters();
+});
+
+// Charts
+function renderCharts(){
+  // Aggregations
+  const byRegion = {};
+  const byType = {};
+  enriched.forEach(c=>{
+    byRegion[c.region] = (byRegion[c.region]||0) + c.pin;
+    byType[c.type] = (byType[c.type]||0) + 1;
+  });
+
+  new Chart(document.getElementById('ch_region'),{
+    type:'bar',
+    data:{
+      labels:Object.keys(byRegion),
+      datasets:[{
+        data:Object.values(byRegion).map(v=>v/1000),
+        backgroundColor:'#13315C',
+        borderRadius:6,
+      }]
+    },
+    options:{
+      plugins:{legend:{display:false}},
+      responsive:true,maintainAspectRatio:false,
+      scales:{y:{title:{display:true,text:'People in need (millions)'}}}
+    }
+  });
+
+  new Chart(document.getElementById('ch_type'),{
+    type:'doughnut',
+    data:{
+      labels:Object.keys(byType),
+      datasets:[{
+        data:Object.values(byType),
+        backgroundColor:['#B81D24','#0B2545','#E07A00','#C8A951','#2E7D32','#6B7280']
+      }]
+    },
+    options:{plugins:{legend:{position:'right'}},responsive:true,maintainAspectRatio:false}
+  });
+
+  // Score vs funding gap
+  new Chart(document.getElementById('ch_scatter'),{
+    type:'scatter',
+    data:{datasets:[{
+      data: enriched.map(c=>({x:100-c.funded, y:c.score, label:c.country})),
+      backgroundColor: enriched.map(c=>{
+        if(c.tier===1) return '#7A0F0F';
+        if(c.tier===2) return '#B81D24';
+        if(c.tier===3) return '#E07A00';
+        if(c.tier===4) return '#E0B500';
+        return '#9AA0A6';
+      }),
+      pointRadius:7
+    }]},
+    options:{
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:(ctx)=>`${ctx.raw.label}: score ${ctx.raw.y}, funding gap ${ctx.raw.x}%`}}
+      },
+      responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{title:{display:true,text:'Funding gap (%)'},min:0,max:100},
+        y:{title:{display:true,text:'Priority score'},min:0,max:100}
+      }
+    }
+  });
+}
+
+// Init
+function init(){
+  document.getElementById('updTime').textContent = new Date().toLocaleString('en-GB',{
+    day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  renderKPIs();
+  populateFilters();
+  applyFilters();
+  renderCharts();
+}
+init();
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape') closeDrawer();});
+</script>
+</body>
+</html>
