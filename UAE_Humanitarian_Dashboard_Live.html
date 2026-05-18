@@ -5,6 +5,7 @@
 <title>UAE Aid Agency — Live Humanitarian Monitoring Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -634,6 +635,80 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
   .filters{flex-wrap:wrap;gap:8px}
   .filter-grp{min-width:140px;flex:1}
 }
+
+/* ── Entity Documents tab ─────────────────────────────────────── */
+.edoc-layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+@media(max-width:900px){.edoc-layout{grid-template-columns:1fr}}
+.edoc-dropzone{border:2.5px dashed var(--line);border-radius:12px;padding:32px 20px;
+  text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:#fafbfc}
+.edoc-dropzone.drag-over{border-color:var(--navy-2);background:#eef5fb}
+.edoc-dropzone:hover{border-color:var(--navy-2)}
+.edoc-dropzone .edoc-icon{font-size:36px;margin-bottom:10px}
+.edoc-dropzone p{margin:4px 0;font-size:13px;color:var(--grey)}
+.edoc-dropzone strong{color:var(--navy);font-size:14px}
+.edoc-parsed{background:#F0F7FF;border:1px solid #C3DDF6;border-radius:10px;padding:16px;margin-top:14px}
+.edoc-parsed h4{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 12px}
+.edoc-field{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+.edoc-field label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--grey)}
+.edoc-field input,.edoc-field select{border:1px solid var(--line);border-radius:6px;padding:6px 9px;
+  font-size:13px;color:var(--navy);background:#fff;width:100%;box-sizing:border-box}
+.edoc-field input:focus,.edoc-field select:focus{outline:none;border-color:var(--navy-2)}
+.edoc-contacts{display:flex;flex-direction:column;gap:6px;max-height:130px;overflow-y:auto}
+.edoc-contact-row{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center}
+.edoc-contact-row input{margin:0}
+.edoc-pages-wrap{margin-top:14px}
+.edoc-pages-wrap h5{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--grey);margin:0 0 8px}
+.edoc-page-grid{display:flex;flex-wrap:wrap;gap:8px}
+.edoc-page-thumb{position:relative;cursor:pointer;border-radius:6px;overflow:hidden;
+  border:2px solid transparent;transition:border-color .12s}
+.edoc-page-thumb canvas{display:block;width:72px;height:96px;object-fit:cover}
+.edoc-page-thumb.selected{border-color:var(--navy-2)}
+.edoc-page-thumb .pg-num{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);
+  color:#fff;font-size:9px;text-align:center;padding:2px 0}
+.edoc-page-thumb .pg-check{position:absolute;top:4px;right:4px;background:var(--navy-2);
+  color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;display:none;
+  align-items:center;justify-content:center}
+.edoc-page-thumb.selected .pg-check{display:flex}
+.edoc-save-bar{display:flex;gap:10px;margin-top:16px;align-items:center}
+.edoc-save-bar button{flex:1}
+.edoc-list{display:flex;flex-direction:column;gap:12px}
+.edoc-card{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.edoc-card-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;
+  border-bottom:1px solid var(--line);background:#FAFBFC}
+.edoc-card-hdr .edoc-entity-logo{height:28px;max-width:80px;object-fit:contain}
+.edoc-card-hdr .edoc-entity-name{font-weight:700;color:var(--navy);font-size:13px;flex:1}
+.edoc-card-hdr .edoc-date{font-size:10px;color:var(--grey)}
+.edoc-card-body{padding:12px 14px;font-size:12px;color:#374151}
+.edoc-card-body .edoc-meta-row{display:flex;gap:6px;align-items:baseline;margin-bottom:4px}
+.edoc-card-body .edoc-meta-lbl{font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--grey);min-width:80px}
+.edoc-card-foot{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line);background:#FAFBFC}
+.edoc-card-foot button{font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid var(--line);
+  background:#fff;cursor:pointer;color:var(--navy);font-weight:600;transition:background .12s}
+.edoc-card-foot button:hover{background:#EEF5FB}
+.edoc-card-foot button.danger{color:var(--red);border-color:#FCA5A5}
+.edoc-card-foot button.danger:hover{background:#FEF2F2}
+.edoc-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;
+  padding:2px 7px;border-radius:20px;cursor:pointer;border:1px solid transparent}
+.edoc-badge.has-doc{background:#E0F0FF;color:#1e40af;border-color:#BAD9F8}
+.edoc-badge.has-doc:hover{background:#BAD9F8}
+.edoc-empty{text-align:center;padding:40px 20px;color:var(--grey);font-size:13px}
+.edoc-empty .edoc-empty-icon{font-size:40px;margin-bottom:10px}
+/* Viewer modal */
+.edoc-viewer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:2000;
+  display:none;align-items:center;justify-content:center}
+.edoc-viewer-overlay.open{display:flex}
+.edoc-viewer{background:#fff;border-radius:12px;width:min(780px,96vw);max-height:90vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.edoc-viewer-hdr{display:flex;align-items:center;gap:12px;padding:14px 18px;
+  background:var(--navy);color:#fff;border-radius:12px 12px 0 0}
+.edoc-viewer-hdr h3{font-size:15px;font-weight:700;flex:1;margin:0}
+.edoc-viewer-body{flex:1;overflow-y:auto;padding:16px 18px}
+.edoc-viewer-pages{display:flex;flex-direction:column;gap:16px;align-items:center}
+.edoc-viewer-pages canvas{max-width:100%;border:1px solid var(--line);border-radius:4px;
+  box-shadow:0 2px 8px rgba(0,0,0,.12)}
 </style>
 </head>
 <body>
@@ -717,6 +792,7 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
     <button class="tab-btn"        id="tabBtn-countries"   onclick="switchTab('countries')">📍 Country Updates</button>
     <button class="tab-btn"        id="tabBtn-approvals"   onclick="switchTab('approvals')">✅ Approvals <span class="tab-badge" id="approvalBadge">0</span></button>
     <button class="tab-btn"        id="tabBtn-audit"       onclick="switchTab('audit')">📋 Audit Log</button>
+    <button class="tab-btn"        id="tabBtn-documents"   onclick="switchTab('documents');edocRenderList()">📁 Entity Documents</button>
   </nav>
 
   <!-- KPI tiles -->
@@ -970,6 +1046,110 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
     <div class="audit-log" id="auditLog"></div>
     <div style="font-size:11px;color:var(--grey);margin-top:6px" data-i18n="auditHint">
       Every action on this dashboard is recorded. In production this will be replaced with immutable server-side logging.
+    </div>
+  </div>
+
+  <!-- Entity Documents Tab -->
+  <div class="section" data-tab="documents">
+    <h3>
+      <span id="lblEdocTitle">Entity Documents</span>
+      <span class="count" id="edocCount">0 documents</span>
+    </h3>
+    <div class="edoc-layout">
+      <!-- Left: upload panel -->
+      <div>
+        <!-- Drop zone -->
+        <div class="edoc-dropzone" id="edocDropzone" onclick="document.getElementById('edocFileInput').click()">
+          <div class="edoc-icon">📄</div>
+          <strong id="edocDropLabel">Upload Entity PDF</strong>
+          <p id="edocDropSub">Drag & drop or click to select</p>
+          <p style="font-size:11px;margin-top:8px;color:#9CA3AF" id="edocDropHint">Entity name, contacts, passport pages — all detected automatically</p>
+          <input type="file" id="edocFileInput" accept=".pdf" style="display:none" onchange="edocHandleFile(this.files[0])">
+        </div>
+
+        <!-- Parsed details (shown after upload) -->
+        <div class="edoc-parsed" id="edocParsed" style="display:none">
+          <h4 id="edocParsedTitle">📋 Detected Information — please verify</h4>
+
+          <div class="edoc-field">
+            <label id="edocLblEntity">Entity / Organization</label>
+            <input type="text" id="edocEntityName" placeholder="e.g. World Food Programme">
+          </div>
+          <div class="edoc-field">
+            <label id="edocLblCountry">Country</label>
+            <input type="text" id="edocEntityCountry" placeholder="e.g. Sudan">
+          </div>
+          <div class="edoc-field">
+            <label id="edocLblEmail">Email</label>
+            <input type="text" id="edocEntityEmail" placeholder="contact@entity.org">
+          </div>
+          <div class="edoc-field">
+            <label id="edocLblMatch">Match to Implementing Partner</label>
+            <select id="edocEntityMatch">
+              <option value="">— No match / Other —</option>
+            </select>
+          </div>
+
+          <!-- Contacts -->
+          <div class="edoc-field">
+            <label id="edocLblContacts">Staff / Contacts Detected</label>
+            <div class="edoc-contacts" id="edocContactsList"></div>
+            <button onclick="edocAddContact()" style="margin-top:6px;font-size:11px;padding:4px 10px;
+              border:1px dashed var(--line);border-radius:6px;background:transparent;cursor:pointer;color:var(--navy-2)">
+              + Add contact
+            </button>
+          </div>
+
+          <!-- Page selector -->
+          <div class="edoc-pages-wrap" id="edocPagesWrap">
+            <h5 id="edocLblPages">Select supporting document pages (passport / visa)</h5>
+            <p style="font-size:11px;color:var(--grey);margin:0 0 8px" id="edocLblPagesHint">
+              Click pages to mark them as supporting documents. Leave all unselected to save entire PDF.
+            </p>
+            <div class="edoc-page-grid" id="edocPageGrid"></div>
+          </div>
+
+          <div class="edoc-save-bar">
+            <button class="btn gold" onclick="edocSaveDocument()" id="edocSaveBtn">💾 Save Entity Document</button>
+            <button class="btn" style="background:#E5E7EB;color:#374151;flex:0 0 auto" onclick="edocCancelUpload()">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: saved documents list -->
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:var(--navy)" id="edocListTitle">Saved Entity Documents</div>
+          <input type="text" id="edocSearch" placeholder="Search entity or country…"
+            style="border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:12px;width:180px"
+            oninput="edocRenderList()">
+        </div>
+        <div class="edoc-list" id="edocList">
+          <div class="edoc-empty">
+            <div class="edoc-empty-icon">📂</div>
+            <div id="edocEmptyMsg">No entity documents uploaded yet.</div>
+            <div style="font-size:11px;margin-top:4px;color:#9CA3AF">Upload a PDF to get started.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Entity Document Viewer Modal -->
+  <div class="edoc-viewer-overlay" id="edocViewerOverlay" onclick="if(event.target===this)edocCloseViewer()">
+    <div class="edoc-viewer">
+      <div class="edoc-viewer-hdr">
+        <h3 id="edocViewerTitle">Document Viewer</h3>
+        <button onclick="edocDownloadCurrent()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);
+          color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;margin-right:6px">
+          ⬇ Download
+        </button>
+        <button onclick="edocCloseViewer()" style="background:transparent;border:0;color:#fff;font-size:24px;
+          cursor:pointer;line-height:1;padding:0">×</button>
+      </div>
+      <div class="edoc-viewer-body">
+        <div class="edoc-viewer-pages" id="edocViewerPages"></div>
+      </div>
     </div>
   </div>
 
@@ -1431,7 +1611,16 @@ const I18N = {
     tabCountries:       "📍 Country Updates",
     tabApprovals:       "✅ Approvals",
     tabAudit:           "📋 Audit Log",
+    tabDocuments:       "📁 Entity Documents",
     durationMonths:     "months",
+    edocTitle:          "Entity Documents",
+    edocDocsCount:      "documents",
+    edocSaved:          "Saved Entity Documents",
+    edocEmpty:          "No entity documents uploaded yet.",
+    edocDropLabel:      "Upload Entity PDF",
+    edocDropSub:        "Drag & drop or click to select",
+    edocViewerTitle:    "Document Viewer",
+    edocDocsLabel:      "📎 Docs",
   },
   ar: {
     headerTitle:        "وكالة الامارات للمساعدات الدولية — الرصد الإنساني المباشر",
@@ -1655,7 +1844,16 @@ const I18N = {
     tabCountries:       "📍 تحديثات الدول",
     tabApprovals:       "✅ الاعتمادات",
     tabAudit:           "📋 سجل التدقيق",
+    tabDocuments:       "📁 وثائق الجهات",
     durationMonths:     "أشهر",
+    edocTitle:          "وثائق الجهات المنفِّذة",
+    edocDocsCount:      "وثائق",
+    edocSaved:          "الوثائق المحفوظة",
+    edocEmpty:          "لم يتم رفع أي وثائق بعد.",
+    edocDropLabel:      "رفع ملف PDF للجهة",
+    edocDropSub:        "اسحب الملف وأفلته هنا أو انقر للاختيار",
+    edocViewerTitle:    "عارض الوثائق",
+    edocDocsLabel:      "📎 وثائق",
   },
 };
 function L(key){ return (I18N[USER_PREFS.language]||I18N.en)[key] || key; }
@@ -1919,6 +2117,8 @@ function applyChrome(){
   }
   const tabAuditBtn = document.getElementById('tabBtn-audit');
   if(tabAuditBtn) tabAuditBtn.textContent = L('tabAudit');
+  const tabDocumentsBtn = document.getElementById('tabBtn-documents');
+  if(tabDocumentsBtn) tabDocumentsBtn.textContent = L('tabDocuments');
   const uploadBtn = document.getElementById('lblUploadBtn');
   if(uploadBtn) uploadBtn.textContent = USER_PREFS.language==='ar' ? 'تقديم للاعتماد' : 'Submit for Approval';
   const btnExport = document.getElementById('btnExport');
@@ -5153,7 +5353,9 @@ function renderPending(){
           </div>
         </div>
         <div class="lbl">${USER_PREFS.language==='ar'?'الجهة المنفّذة':'Implementer'}</div>
-        <div class="v" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 0">${renderImplementerLogos(p.implementer,false)}</div>
+        <div class="v" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 0"
+          data-implementer-keys="${parseImplementerParts(p.implementer).map(n=>(PARTNER_ALIASES[n.trim().toUpperCase()]||'')).filter(Boolean).join(',')}"
+        >${renderImplementerLogos(p.implementer,false)}</div>
         <div class="lbl">${USER_PREFS.language==='ar'?'المدة':'Duration'}</div><div class="v">${USER_PREFS.language==='ar'?p.duration.replace(/months?/i,L('durationMonths')):p.duration}</div>
         <div class="lbl">${USER_PREFS.language==='ar'?'الأسلوب':'Modality'}</div><div class="v">${txCompound(p.proposed_modality,'modalities')}</div>
         <div class="lbl">${USER_PREFS.language==='ar'?'جهة التواصل':'Point of contact'}</div><div class="v" style="font-size:11px">${maskPOC(p.point_of_contact)}</div>
@@ -5213,6 +5415,8 @@ function renderPending(){
   document.getElementById('pendingCount').textContent =
     `${rows.length}${rows.length<PENDING_ACTIONS.length?' '+L('of')+' '+PENDING_ACTIONS.length:''} ${rows.length===1?L('briefSingular'):L('briefPlural')} · ${fmtUSD(total)} (${fmtAED(total)})`;
   updateApprovalBadge();
+  // Attach entity document badges if any docs are stored
+  if(typeof edocAttachBadgesToCards==='function') edocAttachBadgesToCards();
 }
 
 function notifyApprover(id){
@@ -10047,6 +10251,489 @@ function checkLogin(){
 
 // Also translate upload button label on language switch (called from applyChrome)
 const _origApplyChrome = typeof applyChrome === 'function' ? applyChrome : null;
+
+// ============================================================
+// ENTITY DOCUMENTS — upload, parse, store, view
+// ============================================================
+
+// ── PDF.js setup ─────────────────────────────────────────────
+if(typeof pdfjsLib !== 'undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+// ── IndexedDB ────────────────────────────────────────────────
+const _EDOC_DB='UAEAidEntityDocs', _EDOC_VER=1, _EDOC_STORE='documents';
+let _edocDb=null;
+
+function edocOpenDb(){
+  if(_edocDb) return Promise.resolve(_edocDb);
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open(_EDOC_DB,_EDOC_VER);
+    r.onupgradeneeded=e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains(_EDOC_STORE)){
+        const s=db.createObjectStore(_EDOC_STORE,{keyPath:'id',autoIncrement:true});
+        s.createIndex('entityKey','entityKey',{unique:false});
+      }
+    };
+    r.onsuccess=e=>{_edocDb=e.target.result;res(_edocDb);};
+    r.onerror=e=>rej(e.target.error);
+  });
+}
+async function edocGetAll(){
+  const db=await edocOpenDb();
+  return new Promise((res,rej)=>{
+    const r=db.transaction(_EDOC_STORE,'readonly').objectStore(_EDOC_STORE).getAll();
+    r.onsuccess=e=>res(e.target.result||[]);
+    r.onerror=e=>rej(e.target.error);
+  });
+}
+async function edocGetById(id){
+  const db=await edocOpenDb();
+  return new Promise((res,rej)=>{
+    const r=db.transaction(_EDOC_STORE,'readonly').objectStore(_EDOC_STORE).get(id);
+    r.onsuccess=e=>res(e.target.result);
+    r.onerror=e=>rej(e.target.error);
+  });
+}
+async function edocSaveRecord(rec){
+  const db=await edocOpenDb();
+  return new Promise((res,rej)=>{
+    const r=db.transaction(_EDOC_STORE,'readwrite').objectStore(_EDOC_STORE).add(rec);
+    r.onsuccess=e=>res(e.target.result);
+    r.onerror=e=>rej(e.target.error);
+  });
+}
+async function edocDeleteRecord(id){
+  const db=await edocOpenDb();
+  return new Promise((res,rej)=>{
+    const r=db.transaction(_EDOC_STORE,'readwrite').objectStore(_EDOC_STORE).delete(id);
+    r.onsuccess=()=>res();
+    r.onerror=e=>rej(e.target.error);
+  });
+}
+
+// ── Text extraction via PDF.js ────────────────────────────────
+async function edocExtractText(arrayBuffer){
+  if(typeof pdfjsLib==='undefined') return{numPages:0,pages:[],fullText:''};
+  const pdf=await pdfjsLib.getDocument({data:arrayBuffer.slice(0)}).promise;
+  const pages=[];
+  for(let i=1;i<=pdf.numPages;i++){
+    const page=await pdf.getPage(i);
+    const c=await page.getTextContent();
+    pages.push(c.items.map(x=>x.str).join(' '));
+  }
+  return{numPages:pdf.numPages,pages,fullText:pages.join('\n')};
+}
+
+// ── Entity info parser ────────────────────────────────────────
+function edocParseDetails(fullText, pages){
+  // Emails
+  const emails=[...new Set((fullText.match(/[\w.+%-]+@[\w.-]+\.[a-zA-Z]{2,}/g)||[]))];
+
+  // Entity name: look for labelled field first, then first capitalised block
+  let entityName='';
+  const namePatterns=[
+    /(?:implementing\s+(?:entity|partner|organisation|organization)|entity\s+name|organisation\s+name|organization\s+name|partner\s+name)[\s:]+([^\n\r,;]{3,60})/i,
+    /(?:^|\n)([A-Z][A-Za-z\s&'.()\-]{4,55}(?:Foundation|Agency|Programme|Program|Committee|Authority|Organisation|Organization|Fund|Council|Centre|Center|Relief|Aid|International|Association|Society|Network|Consortium))/m,
+  ];
+  for(const pat of namePatterns){
+    const m=fullText.match(pat);
+    if(m){entityName=m[1].trim().replace(/\s+/g,' ');break;}
+  }
+  // Fallback: first non-trivial line of page 1
+  if(!entityName&&pages[0]){
+    const lines=pages[0].split(/\s{3,}|\n/).map(s=>s.trim()).filter(s=>s.length>5&&!/^\d/.test(s));
+    entityName=lines[0]||'';
+  }
+
+  // Country
+  let country='';
+  const ctryM=fullText.match(/(?:country|location|implementing\s+country|country\s+of\s+operation)[\s:]+([A-Za-z\s]{2,30})(?:\n|,|;|\.)/i);
+  if(ctryM) country=ctryM[1].trim();
+
+  // Positions / staff
+  const positions=[];
+  const posRe=/\b(Director General|Country Director|Executive Director|Programme Manager|Project Manager|Field Officer|Logistics Officer|Finance Officer|Administrator|HR Manager|Accountant|Representative|Coordinator|Officer|Manager|Director|President|CEO|CFO|Head of Office)[\s,;:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/g;
+  let m;
+  while((m=posRe.exec(fullText))!==null){
+    if(!positions.find(p=>p.name===m[2].trim()))
+      positions.push({title:m[1].trim(),name:m[2].trim()});
+  }
+
+  // Passport numbers
+  const passports=[...new Set((fullText.match(/\b[A-Z]{1,2}[0-9]{6,9}\b/g)||[]))];
+
+  return{entityName,country,email:emails[0]||'',emails,positions,passports};
+}
+
+// ── Match to PARTNER_ALIASES ──────────────────────────────────
+function edocMatchEntity(name){
+  if(!name) return '';
+  const up=name.toUpperCase().trim();
+  // Direct alias lookup
+  for(const [alias,key] of Object.entries(PARTNER_ALIASES)){
+    if(up===alias||up.includes(alias)||alias.includes(up.slice(0,Math.min(up.length,20))))
+      return key;
+  }
+  // UN_AGENCY_META name check
+  for(const [key,meta] of Object.entries(UN_AGENCY_META)){
+    const mn=meta.name.toUpperCase();
+    if(up.includes(mn.slice(0,12))||mn.includes(up.slice(0,12)))
+      return key;
+  }
+  return '';
+}
+
+// ── Current upload state ──────────────────────────────────────
+let _edocCurrent={file:null,arrayBuffer:null,parsed:null,selectedPages:new Set()};
+
+// ── Drop zone drag events ─────────────────────────────────────
+function edocInitDrop(){
+  const dz=document.getElementById('edocDropzone');
+  if(!dz) return;
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{
+    e.preventDefault();dz.classList.remove('drag-over');
+    const f=e.dataTransfer.files[0];
+    if(f&&f.type==='application/pdf') edocHandleFile(f);
+  });
+}
+
+// ── File handler ──────────────────────────────────────────────
+async function edocHandleFile(file){
+  if(!file||file.type!=='application/pdf'){alert('Please select a PDF file.');return;}
+  _edocCurrent={file,arrayBuffer:null,parsed:null,selectedPages:new Set()};
+
+  // Show loading state
+  document.getElementById('edocDropSub').textContent='Reading PDF…';
+
+  const buf=await file.arrayBuffer();
+  _edocCurrent.arrayBuffer=buf;
+
+  // Extract text
+  let extracted;
+  try{ extracted=await edocExtractText(buf); }
+  catch(e){ extracted={numPages:0,pages:[],fullText:''}; }
+
+  // Parse details
+  const parsed=edocParseDetails(extracted.fullText,extracted.pages);
+  parsed.numPages=extracted.numPages;
+  parsed.pages=extracted.pages;
+  _edocCurrent.parsed=parsed;
+
+  // Show panel
+  document.getElementById('edocParsed').style.display='block';
+  document.getElementById('edocEntityName').value=parsed.entityName;
+  document.getElementById('edocEntityCountry').value=parsed.country;
+  document.getElementById('edocEntityEmail').value=parsed.email;
+
+  // Populate partner match dropdown
+  const sel=document.getElementById('edocEntityMatch');
+  sel.innerHTML='<option value="">— No match / Other —</option>';
+  for(const [key,meta] of Object.entries(UN_AGENCY_META)){
+    const opt=document.createElement('option');
+    opt.value=key;opt.textContent=`${key} — ${meta.name}`;
+    sel.appendChild(opt);
+  }
+  const autoMatch=edocMatchEntity(parsed.entityName);
+  if(autoMatch) sel.value=autoMatch;
+
+  // Contacts
+  edocRenderContacts(parsed.positions);
+
+  // Page thumbnails
+  await edocRenderPageThumbs(buf,extracted.numPages);
+
+  document.getElementById('edocDropSub').textContent='Drag & drop or click to select';
+}
+
+function edocRenderContacts(positions){
+  const list=document.getElementById('edocContactsList');
+  list.innerHTML='';
+  const rows=positions.length>0?positions:[{title:'',name:''}];
+  rows.forEach((p,i)=>{
+    const row=document.createElement('div');
+    row.className='edoc-contact-row';
+    row.innerHTML=`
+      <input type="text" placeholder="Name" value="${p.name||''}" data-ci="${i}" data-field="name">
+      <input type="text" placeholder="Position / Title" value="${p.title||''}" data-ci="${i}" data-field="title">
+      <button onclick="this.closest('.edoc-contact-row').remove()"
+        style="background:transparent;border:0;color:#9CA3AF;font-size:16px;cursor:pointer;padding:0 4px">×</button>`;
+    list.appendChild(row);
+  });
+}
+
+function edocAddContact(){
+  const list=document.getElementById('edocContactsList');
+  const i=list.children.length;
+  const row=document.createElement('div');
+  row.className='edoc-contact-row';
+  row.innerHTML=`
+    <input type="text" placeholder="Name" data-ci="${i}" data-field="name">
+    <input type="text" placeholder="Position / Title" data-ci="${i}" data-field="title">
+    <button onclick="this.closest('.edoc-contact-row').remove()"
+      style="background:transparent;border:0;color:#9CA3AF;font-size:16px;cursor:pointer;padding:0 4px">×</button>`;
+  list.appendChild(row);
+}
+
+async function edocRenderPageThumbs(arrayBuffer,numPages){
+  const grid=document.getElementById('edocPageGrid');
+  grid.innerHTML='';
+  if(!numPages||typeof pdfjsLib==='undefined'){
+    document.getElementById('edocPagesWrap').style.display='none';return;
+  }
+  document.getElementById('edocPagesWrap').style.display='block';
+  const pdf=await pdfjsLib.getDocument({data:arrayBuffer.slice(0)}).promise;
+  for(let i=1;i<=Math.min(numPages,20);i++){
+    const thumb=document.createElement('div');
+    thumb.className='edoc-page-thumb';
+    thumb.dataset.page=i;
+    const canvas=document.createElement('canvas');
+    const checkDiv=document.createElement('div');
+    checkDiv.className='pg-check';checkDiv.textContent='✓';
+    const numDiv=document.createElement('div');
+    numDiv.className='pg-num';numDiv.textContent=`Page ${i}`;
+    thumb.appendChild(canvas);thumb.appendChild(checkDiv);thumb.appendChild(numDiv);
+    thumb.onclick=()=>{
+      if(_edocCurrent.selectedPages.has(i)) _edocCurrent.selectedPages.delete(i);
+      else _edocCurrent.selectedPages.add(i);
+      thumb.classList.toggle('selected',_edocCurrent.selectedPages.has(i));
+    };
+    grid.appendChild(thumb);
+    // Render thumbnail async
+    (async()=>{
+      const page=await pdf.getPage(i);
+      const vp=page.getViewport({scale:0.3});
+      canvas.width=vp.width;canvas.height=vp.height;
+      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+    })();
+  }
+}
+
+// ── Save document ─────────────────────────────────────────────
+async function edocSaveDocument(){
+  const name=document.getElementById('edocEntityName').value.trim();
+  if(!name){alert('Please enter an entity name.');return;}
+
+  const contacts=[];
+  document.querySelectorAll('#edocContactsList .edoc-contact-row').forEach(row=>{
+    const n=row.querySelector('[data-field="name"]')?.value.trim()||'';
+    const t=row.querySelector('[data-field="title"]')?.value.trim()||'';
+    if(n||t) contacts.push({name:n,title:t});
+  });
+
+  const record={
+    entityKey:   document.getElementById('edocEntityMatch').value||'',
+    entityName:  name,
+    country:     document.getElementById('edocEntityCountry').value.trim(),
+    email:       document.getElementById('edocEntityEmail').value.trim(),
+    contacts,
+    supportingPages: _edocCurrent.selectedPages.size>0
+      ? [..._edocCurrent.selectedPages].sort((a,b)=>a-b)
+      : 'all',
+    numPages:    _edocCurrent.parsed?.numPages||0,
+    fileName:    _edocCurrent.file.name,
+    uploadedAt:  new Date().toISOString(),
+    pdfData:     _edocCurrent.arrayBuffer,
+  };
+
+  const btn=document.getElementById('edocSaveBtn');
+  btn.textContent='Saving…';btn.disabled=true;
+  try{
+    await edocSaveRecord(record);
+    edocCancelUpload();
+    await edocRenderList();
+    const cnt=document.getElementById('edocCount');
+    const all=await edocGetAll();
+    if(cnt) cnt.textContent=`${all.length} ${L('edocDocsCount')}`;
+  }catch(e){
+    alert('Error saving: '+e.message);
+  }finally{
+    btn.textContent='💾 Save Entity Document';btn.disabled=false;
+  }
+}
+
+function edocCancelUpload(){
+  _edocCurrent={file:null,arrayBuffer:null,parsed:null,selectedPages:new Set()};
+  document.getElementById('edocParsed').style.display='none';
+  document.getElementById('edocFileInput').value='';
+}
+
+// ── Render saved list ─────────────────────────────────────────
+async function edocRenderList(){
+  const list=document.getElementById('edocList');
+  const search=(document.getElementById('edocSearch')?.value||'').toLowerCase();
+  let docs=await edocGetAll();
+  if(search) docs=docs.filter(d=>
+    d.entityName.toLowerCase().includes(search)||
+    (d.country||'').toLowerCase().includes(search)||
+    (d.entityKey||'').toLowerCase().includes(search)
+  );
+  docs.sort((a,b)=>b.uploadedAt.localeCompare(a.uploadedAt));
+
+  const cnt=document.getElementById('edocCount');
+  const all=await edocGetAll();
+  if(cnt) cnt.textContent=`${all.length} ${L('edocDocsCount')}`;
+
+  if(!docs.length){
+    list.innerHTML=`<div class="edoc-empty">
+      <div class="edoc-empty-icon">📂</div>
+      <div>${L('edocEmpty')}</div>
+      <div style="font-size:11px;margin-top:4px;color:#9CA3AF">Upload a PDF to get started.</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML='';
+  docs.forEach(doc=>{
+    const meta=doc.entityKey?UN_AGENCY_META[doc.entityKey]:null;
+    const logoHtml=meta?.logoUrl
+      ? `<img class="edoc-entity-logo" src="${meta.logoUrl}" alt="${doc.entityKey}"
+           onerror="this.style.display='none'">`
+      : `<span style="font-size:22px">🏢</span>`;
+    const pages=doc.supportingPages==='all'
+      ? `All ${doc.numPages} pages`
+      : `${doc.supportingPages.length} supporting page${doc.supportingPages.length!==1?'s':''} selected`;
+    const dateStr=new Date(doc.uploadedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const contactsHtml=doc.contacts?.length
+      ? doc.contacts.map(c=>`<div style="display:flex;gap:6px"><span style="color:var(--grey);min-width:130px">${c.title||'—'}</span><span>${c.name||'—'}</span></div>`).join('')
+      : '<span style="color:var(--grey)">—</span>';
+
+    const card=document.createElement('div');
+    card.className='edoc-card';
+    card.innerHTML=`
+      <div class="edoc-card-hdr">
+        ${logoHtml}
+        <div>
+          <div class="edoc-entity-name">${doc.entityName}</div>
+          ${doc.country?`<div style="font-size:11px;color:var(--grey)">${doc.country}</div>`:''}
+        </div>
+        <div class="edoc-date">${dateStr}</div>
+      </div>
+      <div class="edoc-card-body">
+        ${doc.email?`<div class="edoc-meta-row"><span class="edoc-meta-lbl">Email</span><a href="mailto:${doc.email}" style="color:var(--navy-2)">${doc.email}</a></div>`:''}
+        <div class="edoc-meta-row"><span class="edoc-meta-lbl">File</span>${doc.fileName}</div>
+        <div class="edoc-meta-row"><span class="edoc-meta-lbl">Pages</span>${pages}</div>
+        ${doc.contacts?.length?`<div class="edoc-meta-row" style="align-items:flex-start">
+          <span class="edoc-meta-lbl">Contacts</span>
+          <div style="display:flex;flex-direction:column;gap:3px">${contactsHtml}</div>
+        </div>`:''}
+      </div>
+      <div class="edoc-card-foot">
+        <button onclick="edocViewDoc(${doc.id})">📄 View Full PDF</button>
+        ${doc.supportingPages!=='all'&&doc.supportingPages.length>0
+          ? `<button onclick="edocViewDoc(${doc.id},true)">🪪 Supporting Pages Only</button>`:''}
+        <button onclick="edocDownloadDoc(${doc.id})" style="margin-left:auto">⬇ Download</button>
+        <button class="danger" onclick="edocDeleteDoc(${doc.id})">🗑 Delete</button>
+      </div>`;
+    list.appendChild(card);
+  });
+}
+
+// ── View in modal ─────────────────────────────────────────────
+let _edocViewerCurrent=null;
+
+async function edocViewDoc(id,supportingOnly=false){
+  const doc=await edocGetById(id);
+  if(!doc){alert('Document not found.');return;}
+  _edocViewerCurrent=doc;
+  document.getElementById('edocViewerTitle').textContent=
+    `${doc.entityName}${supportingOnly?' — Supporting Pages':''} · ${doc.fileName}`;
+  const pagesDiv=document.getElementById('edocViewerPages');
+  pagesDiv.innerHTML='<div style="color:var(--grey);text-align:center;padding:20px">Rendering pages…</div>';
+  document.getElementById('edocViewerOverlay').classList.add('open');
+
+  const pagesToShow=supportingOnly&&doc.supportingPages!=='all'
+    ? doc.supportingPages
+    : null; // null = all
+
+  if(typeof pdfjsLib==='undefined'){
+    pagesDiv.innerHTML='<div style="text-align:center;padding:20px;color:var(--grey)">PDF.js not available — use Download instead.</div>';
+    return;
+  }
+  const pdf=await pdfjsLib.getDocument({data:doc.pdfData.slice(0)}).promise;
+  pagesDiv.innerHTML='';
+  const total=pagesToShow?pagesToShow.length:pdf.numPages;
+  for(let i=0;i<total;i++){
+    const pageNum=pagesToShow?pagesToShow[i]:i+1;
+    const canvas=document.createElement('canvas');
+    pagesDiv.appendChild(canvas);
+    const page=await pdf.getPage(pageNum);
+    const scale=Math.min(1.2,pagesDiv.offsetWidth/page.getViewport({scale:1}).width*0.95||1.2);
+    const vp=page.getViewport({scale});
+    canvas.width=vp.width;canvas.height=vp.height;
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+  }
+}
+
+function edocCloseViewer(){
+  document.getElementById('edocViewerOverlay').classList.remove('open');
+  _edocViewerCurrent=null;
+}
+
+function edocDownloadCurrent(){
+  if(_edocViewerCurrent) edocDownloadDoc(_edocViewerCurrent.id);
+}
+
+async function edocDownloadDoc(id){
+  const doc=await edocGetById(id);
+  if(!doc) return;
+  const blob=new Blob([doc.pdfData],{type:'application/pdf'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=doc.fileName;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
+
+async function edocDeleteDoc(id){
+  if(!confirm('Delete this document? This cannot be undone.')) return;
+  await edocDeleteRecord(id);
+  edocRenderList();
+}
+
+// ── Show doc badge in Approvals cards ────────────────────────
+// Called after renderPending() to attach doc badges to implementer sections
+async function edocAttachBadgesToCards(){
+  const docs=await edocGetAll();
+  if(!docs.length) return;
+  const keySet=new Set(docs.map(d=>d.entityKey).filter(Boolean));
+  document.querySelectorAll('[data-implementer-keys]').forEach(el=>{
+    const keys=(el.dataset.implementerKeys||'').split(',').filter(Boolean);
+    const matching=keys.filter(k=>keySet.has(k));
+    if(!matching.length) return;
+    matching.forEach(key=>{
+      const matchDocs=docs.filter(d=>d.entityKey===key);
+      const badge=document.createElement('span');
+      badge.className='edoc-badge has-doc';
+      badge.title=`${matchDocs.length} document${matchDocs.length!==1?'s':''} on file`;
+      badge.innerHTML=`📎 ${matchDocs.length}`;
+      badge.onclick=e=>{
+        e.stopPropagation();
+        // Switch to documents tab and highlight the entity
+        switchTab('documents');
+        setTimeout(()=>{
+          document.getElementById('edocSearch').value=key;
+          edocRenderList();
+        },100);
+      };
+      el.appendChild(badge);
+    });
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────
+function edocInit(){
+  edocInitDrop();
+  edocRenderList();
+}
+
+// Kick off when documents tab is first opened (hook via tab button onclick)
+document.addEventListener('DOMContentLoaded',()=>{
+  edocOpenDb().then(()=>edocRenderList()).catch(()=>{});
+  edocInitDrop();
+});
 
 </script>
 
