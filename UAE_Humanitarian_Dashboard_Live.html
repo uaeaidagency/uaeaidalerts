@@ -792,7 +792,6 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
     <button class="tab-btn"        id="tabBtn-countries"   onclick="switchTab('countries')">📍 Country Updates</button>
     <button class="tab-btn"        id="tabBtn-approvals"   onclick="switchTab('approvals')">✅ Approvals <span class="tab-badge" id="approvalBadge">0</span></button>
     <button class="tab-btn"        id="tabBtn-audit"       onclick="switchTab('audit')">📋 Audit Log</button>
-    <button class="tab-btn"        id="tabBtn-documents"   onclick="switchTab('documents');edocRenderList()">📁 Entity Documents</button>
   </nav>
 
   <!-- KPI tiles -->
@@ -1049,8 +1048,8 @@ body[dir="rtl"] .drawer{box-shadow:6px 0 24px rgba(0,0,0,.18)}
     </div>
   </div>
 
-  <!-- Entity Documents Tab -->
-  <div class="section" data-tab="documents">
+  <!-- Entity Documents Panel (Approvals tab) -->
+  <div class="section" data-tab="approvals">
     <h3>
       <span id="lblEdocTitle">Entity Documents</span>
       <span class="count" id="edocCount">0 documents</span>
@@ -2117,8 +2116,6 @@ function applyChrome(){
   }
   const tabAuditBtn = document.getElementById('tabBtn-audit');
   if(tabAuditBtn) tabAuditBtn.textContent = L('tabAudit');
-  const tabDocumentsBtn = document.getElementById('tabBtn-documents');
-  if(tabDocumentsBtn) tabDocumentsBtn.textContent = L('tabDocuments');
   const uploadBtn = document.getElementById('lblUploadBtn');
   if(uploadBtn) uploadBtn.textContent = USER_PREFS.language==='ar' ? 'تقديم للاعتماد' : 'Submit for Approval';
   const btnExport = document.getElementById('btnExport');
@@ -10729,11 +10726,17 @@ function edocInit(){
   edocRenderList();
 }
 
-// Kick off when documents tab is first opened (hook via tab button onclick)
+// Init entity documents panel on page load (it lives in the Approvals tab)
 document.addEventListener('DOMContentLoaded',()=>{
   edocOpenDb().then(()=>edocRenderList()).catch(()=>{});
   edocInitDrop();
 });
+// Also re-render list when Approvals tab is switched to
+const _edocTabBtn=document.getElementById('tabBtn-approvals');
+if(_edocTabBtn){
+  const _edocOrig=_edocTabBtn.onclick;
+  _edocTabBtn.addEventListener('click',()=>{ setTimeout(()=>edocRenderList(),50); });
+}
 
 </script>
 
