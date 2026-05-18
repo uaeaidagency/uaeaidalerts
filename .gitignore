@@ -17,7 +17,6 @@ globe_sphere.png
 smtp.env
 telegram.env
 
-# Keep the HTML dashboard local — it's too large and not needed for cloud alerts
-UAE_Humanitarian_Dashboard*.html
+# Presentation exports (local only)
 Humanitarian_Overview*.html
 UAE_Aid_Agency_Presentation*.html
