@@ -106,12 +106,17 @@ def _try_smtp(
     attachment_paths,
 ) -> bool:
     env = _read_smtp_env()
-    host = env.get("SMTP_HOST")
-    port = int(env.get("SMTP_PORT", "587"))
-    user = env.get("SMTP_USER")
-    password = env.get("SMTP_PASS")
-    sender_addr = env.get("SMTP_FROM", user or "")
-    sender_name = env.get("SMTP_FROM_NAME", "").strip()
+    # Environment variables take precedence over smtp.env so cloud deployments
+    # (Railway, Heroku, etc.) can inject credentials without committing the file.
+    host = os.environ.get("SMTP_HOST") or env.get("SMTP_HOST")
+    port = int(os.environ.get("SMTP_PORT") or env.get("SMTP_PORT") or "587")
+    user = os.environ.get("SMTP_USER") or env.get("SMTP_USER")
+    password = os.environ.get("SMTP_PASS") or env.get("SMTP_PASS")
+    if password:
+        # Gmail app passwords are 16 chars often displayed with spaces — strip them.
+        password = password.replace(" ", "")
+    sender_addr = os.environ.get("SMTP_FROM") or env.get("SMTP_FROM") or user or ""
+    sender_name = (os.environ.get("SMTP_FROM_NAME") or env.get("SMTP_FROM_NAME", "")).strip()
     if not (host and user and password and sender_addr):
         return False
 

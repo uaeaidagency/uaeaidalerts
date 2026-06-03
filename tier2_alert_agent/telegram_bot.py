@@ -29,6 +29,7 @@ import datetime as dt
 import json
 import os
 import sys
+import threading
 import time
 import traceback
 import urllib.error
@@ -65,7 +66,8 @@ OFFSET_FILE = os.path.join(STATE_DIR, "telegram_offset.json")
 
 POLL_TIMEOUT_S = 25
 RETRY_BACKOFF_S = 5
-SCORES_REFRESH_S = 300  # recompute scores every 5 minutes
+SCORES_REFRESH_S = 300   # recompute scores every 5 minutes
+RUN_CHECK_INTERVAL_S = 3600  # run tier-alert check every hour
 
 # Common aliases / informal names → canonical country name in STATE.crises.
 COUNTRY_ALIASES = {
@@ -381,6 +383,33 @@ def _handle_message(token: str, message: dict, scores: List[CrisisScore],
                        "The overview above is current.")
 
 
+# ── Background scheduler (run_check hourly) ────────────────────────────
+
+def _run_check_loop() -> None:
+    """Background thread: call run_check.run() once immediately, then every hour.
+
+    Runs as a daemon so it doesn't prevent the process from exiting.
+    Any exception inside run_check is caught and logged so the bot stays alive.
+    """
+    # Lazy import to avoid circular deps at module load time.
+    try:
+        import run_check
+    except Exception as e:
+        _log(f"[scheduler] Could not import run_check: {e}. Hourly checks disabled.")
+        return
+
+    # Delay the first run by 30 seconds so the bot has time to fully start up.
+    time.sleep(30)
+    while True:
+        try:
+            _log("[scheduler] Running hourly tier-alert check…")
+            sent = run_check.run()
+            _log(f"[scheduler] Hourly check complete. {sent} alert(s) sent.")
+        except Exception as e:
+            _log(f"[scheduler] run_check error: {e}\n{traceback.format_exc()}")
+        time.sleep(RUN_CHECK_INTERVAL_S)
+
+
 # ── Main loop ───────────────────────────────────────────────────────────
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -404,6 +433,14 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     offset = _load_offset()
     _log(f"Resuming from update offset {offset}.")
+
+    # Start the hourly run_check scheduler in a background daemon thread.
+    # This fires tier-change emails + Telegram alerts automatically so the
+    # Railway deployment doesn't need a separate cron process.
+    if not args.once:
+        scheduler = threading.Thread(target=_run_check_loop, daemon=True, name="run-check-scheduler")
+        scheduler.start()
+        _log("Hourly alert scheduler started (background thread).")
 
     scores: List[CrisisScore] = compute_all_scores()
     scores_at = time.time()
