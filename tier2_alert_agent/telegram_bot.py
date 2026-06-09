@@ -58,6 +58,18 @@ except Exception:
 
 from exec_summary import generate_pdf as generate_reportlab_pdf  # noqa: E402
 
+try:
+    import world_countries
+    _WORLD_COUNTRIES_AVAILABLE = True
+except Exception:
+    _WORLD_COUNTRIES_AVAILABLE = False
+
+try:
+    import live_crises
+    _LIVE_CRISES_AVAILABLE = True
+except Exception:
+    _LIVE_CRISES_AVAILABLE = False
+
 CONFIG_FILE = os.path.join(HERE, "config.json")
 LOG_DIR = os.path.join(HERE, "logs")
 STATE_DIR = os.path.join(HERE, "state")
@@ -145,6 +157,38 @@ def _save_offset(offset: int) -> None:
     os.makedirs(STATE_DIR, exist_ok=True)
     with open(OFFSET_FILE, "w", encoding="utf-8") as f:
         json.dump({"offset": offset, "updated_at": dt.datetime.now().isoformat()}, f)
+
+
+def _drain_backlog(token: str) -> int:
+    """Skip ALL pending updates on startup so the bot never replies to a
+    backlog of old messages. Returns the offset to resume from (one past
+    the most recent pending update). Uses timeout=0 so it returns at once.
+
+    This is the permanent fix for the 'bot replied to 199 old messages'
+    problem: on every startup we acknowledge the whole queue without
+    handling any of it, then only process messages that arrive afterward.
+    """
+    url = f"https://api.telegram.org/bot{token}/getUpdates"
+    next_offset = 0
+    try:
+        # offset=-1 returns just the last pending update (if any).
+        params = urllib.parse.urlencode({"offset": -1, "timeout": 0})
+        with urllib.request.urlopen(f"{url}?{params}", timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        results = data.get("result") or []
+        if results:
+            last_id = int(results[-1]["update_id"])
+            next_offset = last_id + 1
+            # Confirm/clear everything up to and including last_id.
+            confirm = urllib.parse.urlencode({"offset": next_offset, "timeout": 0})
+            with urllib.request.urlopen(f"{url}?{confirm}", timeout=15) as resp:
+                json.loads(resp.read().decode("utf-8"))
+            _log(f"Drained backlog up to update {last_id}; resuming from {next_offset}.")
+        else:
+            _log("No backlog to drain.")
+    except Exception as e:
+        _log(f"Backlog drain failed (continuing anyway): {e}")
+    return next_offset
 
 
 def _get_updates(token: str, offset: int) -> dict:
@@ -258,16 +302,22 @@ def _format_overview(score: CrisisScore) -> str:
 def _help_text(countries: List[str]) -> str:
     return (
         "👋 <b>UAE Aid Agency — Monitoring Bot</b>\n\n"
-        "Send a country name and I'll reply with the current crisis overview "
-        "and attach the executive summary PDF.\n\n"
+        "Send <b>any country name</b> — works for every country on Earth:\n"
+        "• Curated crisis → full scored overview + executive summary PDF.\n"
+        "• Any other country → live status pulled in real time from "
+        "<b>OCHA ReliefWeb</b> + <b>GDACS</b>, plus the latest news headlines "
+        "from BBC, Reuters, AP, Al Jazeera, WAM, The National and other "
+        "reputable outlets — with UAE priority status and engagement history.\n\n"
         "<b>Try:</b>\n"
-        "• <code>Sudan</code>\n"
-        "• <code>/update Yemen</code>\n"
+        "• <code>Sudan</code> (curated crisis + PDF)\n"
+        "• <code>Chad</code> (live crisis + news)\n"
+        "• <code>Japan</code> (profile + any live alerts)\n"
         "• <code>What's happening in Lebanon?</code>\n\n"
         "<b>Commands:</b>\n"
-        "<code>/list</code> — every crisis grouped by tier\n"
+        "<code>/list</code> — every curated crisis grouped by tier\n"
         "<code>/help</code> — show this message\n\n"
-        f"<i>{len(countries)} countries currently monitored.</i>"
+        f"<i>{len(countries)} curated crises · every country on Earth recognised "
+        "with live worldwide data.</i>"
     )
 
 
@@ -315,23 +365,198 @@ def _try_generate_pdf(country: str) -> Optional[str]:
         return None
 
 
+def _priority_status(country: str) -> Optional[str]:
+    """Return the UAE strategic priority tier for a country (from
+    03_UAE_Priority_Countries.csv), or None if not listed."""
+    import csv
+    path = os.path.join(PARENT, "03_UAE_Priority_Countries.csv")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                name = (r.get("Country") or "").strip()
+                if name.lower() == country.lower() or country.lower() in name.lower():
+                    tier = (r.get("Tier (1-3)") or "").strip()
+                    rationale = (r.get("Rationale") or "").strip()
+                    return f"Tier {tier}" + (f" — {rationale}" if rationale else "")
+    except Exception:
+        pass
+    return None
+
+
+def _past_engagements(country: str) -> List[dict]:
+    """Return past UAE response-log entries for a country (from
+    04_Response_Decision_Log.csv), most recent first."""
+    import csv
+    path = os.path.join(PARENT, "04_Response_Decision_Log.csv")
+    out: List[dict] = []
+    if not os.path.exists(path):
+        return out
+    try:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                name = (r.get("Country") or "").strip()
+                if not name:
+                    continue
+                if name.lower() == country.lower() or country.lower() in name.lower() \
+                        or name.lower() in country.lower():
+                    out.append({
+                        "date": (r.get("Date") or "").strip(),
+                        "tier": (r.get("Tier") or "").strip(),
+                        "decision": (r.get("Decision") or "").strip(),
+                        "modality": (r.get("Modality") or "").strip(),
+                        "amount": (r.get("Amount (USD '000)") or "").strip(),
+                        "partner": (r.get("Lead Partner") or "").strip(),
+                    })
+    except Exception:
+        pass
+    out.sort(key=lambda x: x["date"], reverse=True)
+    return out
+
+
+def _format_no_crisis(info: dict, country_name: str, snap: Optional[dict] = None) -> str:
+    """Build the reply for a recognized country that is NOT one of the curated
+    monitored crises. Pulls a LIVE snapshot (ReliefWeb disasters, GDACS alerts,
+    recent reputable news) so the bot reports real current events for ANY
+    country on Earth — not just the 25 curated crises."""
+    name = info.get("name") or country_name
+    region = info.get("region") or "—"
+    capital = info.get("capital") or "—"
+    population = info.get("population") or ""
+    languages = info.get("languages") or ""
+
+    meta_bits = [f"Region: {region}"]
+    if capital and capital != "—":
+        meta_bits.append(f"Capital: {capital}")
+    if population:
+        meta_bits.append(f"Population: {population}")
+    meta_line = " · ".join(meta_bits)
+
+    priority = _priority_status(name)
+    engagements = _past_engagements(name)
+
+    disasters = (snap or {}).get("disasters") or []
+    alerts    = (snap or {}).get("alerts") or []
+    news      = (snap or {}).get("news") or []
+    has_active = bool(disasters or alerts)
+
+    lines = [
+        f"🌍 <b>{_escape_html(name)}</b>",
+        f"<i>{_escape_html(meta_line)}</i>",
+        "",
+    ]
+
+    # ── Live situation (from worldwide trusted sources) ──────────────────
+    if has_active:
+        lines.append("🔴 <b>Live situation — current events on record:</b>")
+        for d in disasters[:4]:
+            label = _escape_html(d.get("type") or "Disaster")
+            nm = _escape_html(d.get("name") or name)
+            url = d.get("url") or ""
+            entry = f"   • <b>{label}</b> — {nm}"
+            if url:
+                entry += f"  <a href=\"{_escape_html(url)}\">[ReliefWeb]</a>"
+            lines.append(entry)
+        for a in alerts[:4]:
+            lvl = (a.get("alert") or "").upper()
+            label = _escape_html(a.get("type") or "Alert")
+            nm = _escape_html(a.get("name") or "")
+            url = a.get("url") or ""
+            entry = f"   • <b>{label}</b> ({lvl}) — {nm}"
+            if url:
+                entry += f"  <a href=\"{_escape_html(url)}\">[GDACS]</a>"
+            lines.append(entry)
+        lines.append(
+            "\n<i>Sources: OCHA ReliefWeb + GDACS. This country is tracked live "
+            "but is not (yet) on the UAE curated scoring list.</i>"
+        )
+    else:
+        lines.append(
+            "✅ <b>No active humanitarian emergency detected</b> right now for "
+            f"{_escape_html(name)} across OCHA ReliefWeb and GDACS live feeds."
+        )
+
+    # ── UAE priority + engagement history ────────────────────────────────
+    if priority:
+        lines.append(f"\n<b>UAE priority status:</b> {_escape_html(priority)}")
+    else:
+        lines.append("\n<b>UAE priority status:</b> Not on the strategic priority list.")
+
+    if engagements:
+        lines.append("<b>Prior UAE engagement on record:</b>")
+        for e in engagements[:5]:
+            amt = ""
+            try:
+                v = float(e["amount"]) * 1000 if e["amount"] else 0
+                if v >= 1_000_000:
+                    amt = f" · USD {v/1_000_000:.1f}M"
+                elif v > 0:
+                    amt = f" · USD {v/1000:.0f}K"
+            except (ValueError, TypeError):
+                pass
+            lines.append(
+                f"   • {_escape_html(e['date'])} — {_escape_html(e['decision'])} "
+                f"({_escape_html(e['tier'])}){amt}"
+                + (f" · {_escape_html(e['modality'])}" if e["modality"] else "")
+            )
+    else:
+        lines.append("<b>Prior UAE engagement:</b> None on record.")
+
+    # ── Recent news headlines (reputable outlets) ────────────────────────
+    if news:
+        lines.append("\n📰 <b>Latest news:</b>")
+        for n in news[:5]:
+            title = _escape_html((n.get("title") or "")[:140])
+            url = n.get("url") or ""
+            src = _escape_html(n.get("source") or "")
+            date = _escape_html(n.get("date") or "")
+            meta = " · ".join([b for b in (src, date) if b])
+            if url:
+                lines.append(f"   • <a href=\"{_escape_html(url)}\">{title}</a>"
+                             + (f"  <i>{meta}</i>" if meta else ""))
+            else:
+                lines.append(f"   • {title}" + (f"  <i>{meta}</i>" if meta else ""))
+
+    if languages:
+        lines.append(f"\n<i>Official language(s): {_escape_html(languages)}</i>")
+
+    return "\n".join(lines)
+
+
 def _handle_message(token: str, message: dict, scores: List[CrisisScore],
                      authorized: Set[int]) -> None:
     chat = message.get("chat", {})
     chat_id = chat.get("id")
+    chat_type = chat.get("type", "private")
     if chat_id is None:
         return
 
     text = (message.get("text") or "").strip()
     sender = chat.get("first_name", "") + " " + (chat.get("last_name", "") or "")
     sender = sender.strip() or chat.get("username", "?")
-    _log(f"Message from {sender} (chat {chat_id}): {text[:120]}")
-
-    # Bot is open to all users — chat_ids in config.json are for outbound alerts only.
-    # To restrict access in future, add logic here.
 
     if not text:
         return
+
+    # In GROUPS/SUPERGROUPS the bot must NOT reply to every message (that
+    # floods active chats). Only respond when the message is a slash command
+    # or explicitly @mentions the bot. In private 1:1 chats, respond to
+    # everything. This is the key anti-spam guard.
+    if chat_type in ("group", "supergroup"):
+        tl = text.lower()
+        is_command = tl.startswith("/")
+        is_mention = ("@uaeaidbot" in tl) or ("@crisislensbot" in tl) or ("@uaeaid" in tl)
+        if not (is_command or is_mention):
+            return  # ignore ordinary group chatter silently
+        # Strip the @mention so country resolution works on the rest.
+        # Longest handle first so "@uaeaidbot" is removed before "@uaeaid".
+        for handle in ("@uaeaidbot", "@UAEAIDBot", "@Crisislensbot",
+                       "@crisislensbot", "@UAEAID", "@uaeaid"):
+            text = text.replace(handle, "")
+        text = text.strip()
+
+    _log(f"Message from {sender} (chat {chat_id}, {chat_type}): {text[:120]}")
 
     text_lower = text.lower().strip()
     countries = [s.country for s in scores]
@@ -344,15 +569,37 @@ def _handle_message(token: str, message: dict, scores: List[CrisisScore],
         _send_message(token, chat_id, _list_text(scores))
         return
 
-    # Country lookup.
+    # Country lookup — first against the monitored crisis countries.
     country = _resolve_country(text, countries)
     if not country:
+        # Not a curated crisis. Recognise it as ANY country on Earth and reply
+        # with a LIVE snapshot (ReliefWeb disasters + GDACS alerts + news) plus
+        # UAE history — so the bot works for every country, never "unknown".
+        if _WORLD_COUNTRIES_AVAILABLE:
+            try:
+                info = world_countries.describe(text)
+            except Exception as e:
+                _log(f"  world_countries.describe failed: {e}")
+                info = None
+            if info:
+                name = info.get("name", text)
+                snap = None
+                if _LIVE_CRISES_AVAILABLE:
+                    try:
+                        snap = live_crises.live_snapshot(name)
+                    except Exception as e:
+                        _log(f"  live_crises.live_snapshot failed: {e}")
+                state = "LIVE CRISIS" if (snap and snap.get("has_active")) else "no active crisis"
+                _log(f"  → {state} reply for {name}")
+                _send_message(token, chat_id, _format_no_crisis(info, name, snap))
+                return
+        # Genuinely couldn't extract a country from the message.
         _send_message(
             token, chat_id,
-            "🤔 I couldn't find a country in your message.\n\n"
-            "Try a country name on its own — e.g. <code>Sudan</code>, "
-            "<code>DR Congo</code>, <code>Lebanon</code>. Or send "
-            "<code>/list</code> to see every monitored country.",
+            "🤔 I couldn't pick out a country from that message.\n\n"
+            "Send a country name on its own — e.g. <code>Sudan</code>, "
+            "<code>Chad</code>, <code>Japan</code>. Send <code>/list</code> "
+            "to see the countries with active curated crises.",
         )
         return
 
@@ -431,8 +678,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     authorized = set(int(c) for c in (tg_cfg.get("chat_ids") or []) if c is not None)
     _log(f"Bot starting. Authorized chat_ids: {authorized or '(open to all)'}")
 
-    offset = _load_offset()
-    _log(f"Resuming from update offset {offset}.")
+    # Always drain the pending backlog on startup so the bot never replies
+    # to a flood of old messages (e.g. after a token change or downtime).
+    drained_offset = _drain_backlog(token)
+    saved_offset = _load_offset()
+    offset = max(drained_offset, saved_offset)
+    _save_offset(offset)
+    _log(f"Starting from update offset {offset} (backlog skipped).")
 
     # Start the hourly run_check scheduler in a background daemon thread.
     # This fires tier-change emails + Telegram alerts automatically so the
