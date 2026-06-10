@@ -723,6 +723,19 @@ def _run_check_loop() -> None:
         time.sleep(RUN_CHECK_INTERVAL_S)
 
 
+def _news_warm_loop() -> None:
+    """Background thread: keep the world-news cache warm so 'news now' replies
+    instantly instead of fetching all feeds on demand."""
+    if not _NEWS_DIGEST_AVAILABLE:
+        return
+    while True:
+        try:
+            news_digest.fetch_world_news(limit=60)  # populates the shared cache
+        except Exception as e:
+            _log(f"[news] pre-warm failed: {e}")
+        time.sleep(150)  # refresh just under the 180s cache TTL
+
+
 # ── Main loop ───────────────────────────────────────────────────────────
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -759,6 +772,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         scheduler = threading.Thread(target=_run_check_loop, daemon=True, name="run-check-scheduler")
         scheduler.start()
         _log("Hourly alert scheduler started (background thread).")
+
+        # Keep the world-news cache warm so 'news now' replies instantly.
+        if _NEWS_DIGEST_AVAILABLE:
+            warmer = threading.Thread(target=_news_warm_loop, daemon=True, name="news-warmer")
+            warmer.start()
+            _log("World-news pre-warmer started (background thread).")
 
     scores: List[CrisisScore] = compute_all_scores()
     scores_at = time.time()

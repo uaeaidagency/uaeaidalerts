@@ -174,56 +174,87 @@ def _parse_rss(xmltext: str, source: str, filt: bool) -> List[dict]:
     return items
 
 
-def fetch_world_news(limit: int = 24) -> List[dict]:
-    """Newest worldwide humanitarian/crisis headlines, newest first.
-    Primary source: public RSS feeds. Supplement: GDELT (best-effort)."""
+# Short in-process cache so repeated requests (e.g. several "news now" messages)
+# return instantly instead of re-fetching every feed each time.
+_NEWS_CACHE = {"ts": 0.0, "items": []}
+_NEWS_CACHE_TTL = 180  # seconds
+
+
+def _fetch_one_rss(feed) -> List[dict]:
+    url, source, filt = feed
+    txt = _http_text(url, timeout=8)
+    return _parse_rss(txt, source, filt) if txt else []
+
+
+def _fetch_gdelt() -> List[dict]:
     out: List[dict] = []
-    seen = set()
-
-    # 1) RSS feeds (primary, reliable, no keys)
-    for url, source, filt in _RSS_FEEDS:
-        txt = _http_text(url)
-        if not txt:
-            continue
-        for it in _parse_rss(txt, source, filt):
-            if it["url"] in seen:
-                continue
-            seen.add(it["url"])
-            out.append(it)
-
-    # 2) GDELT (supplement — adds breadth; tolerated if it returns nothing)
     q = ('(humanitarian OR refugees OR displacement OR famine OR flood OR '
          'earthquake OR cyclone OR drought OR conflict OR outbreak)')
     url = ("https://api.gdeltproject.org/api/v2/doc/doc?query="
            + urllib.parse.quote(q)
            + "&mode=ArtList&format=json&maxrecords=75&timespan=36h&sort=DateDesc")
-    txt = _http_text(url)
-    if txt:
-        try:
-            j = json.loads(txt)
-        except Exception:
-            j = None
-            _LAST_ERRORS.append("GDELT returned non-JSON (likely a rate-limit or query message).")
-        for a in (j.get("articles") if j else []) or []:
-            u = a.get("url")
-            if not u or u in seen or not _reputable(a.get("domain", "")):
-                continue
-            iso, ts = "", 0.0
-            s = a.get("seendate", "")
-            if len(s) >= 8:
-                iso = f"{s[:4]}-{s[4:6]}-{s[6:8]} {s[8:10] or '00'}:{s[10:12] or '00'}"
-                try:
-                    ts = dt.datetime(int(s[:4]), int(s[4:6]), int(s[6:8]),
-                                     int(s[8:10] or 0), int(s[10:12] or 0),
-                                     tzinfo=dt.timezone.utc).timestamp()
-                except Exception:
-                    ts = 0.0
-            seen.add(u)
-            out.append({"title": a.get("title") or "", "source": _source_name(a.get("domain", "")),
-                        "url": u, "date": iso, "ts": ts, "overview": "", "country": ""})
+    txt = _http_text(url, timeout=8)
+    if not txt:
+        return out
+    try:
+        j = json.loads(txt)
+    except Exception:
+        _LAST_ERRORS.append("GDELT returned non-JSON (likely a rate-limit or query message).")
+        return out
+    for a in (j.get("articles") or []):
+        u = a.get("url")
+        if not u or not _reputable(a.get("domain", "")):
+            continue
+        iso, ts = "", 0.0
+        s = a.get("seendate", "")
+        if len(s) >= 8:
+            iso = f"{s[:4]}-{s[4:6]}-{s[6:8]} {s[8:10] or '00'}:{s[10:12] or '00'}"
+            try:
+                ts = dt.datetime(int(s[:4]), int(s[4:6]), int(s[6:8]),
+                                 int(s[8:10] or 0), int(s[10:12] or 0),
+                                 tzinfo=dt.timezone.utc).timestamp()
+            except Exception:
+                ts = 0.0
+        out.append({"title": a.get("title") or "", "source": _source_name(a.get("domain", "")),
+                    "url": u, "date": iso, "ts": ts, "overview": "", "country": ""})
+    return out
 
-    # Newest first
+
+def fetch_world_news(limit: int = 24, use_cache: bool = True) -> List[dict]:
+    """Newest worldwide humanitarian/crisis headlines, newest first.
+    All sources (RSS feeds + GDELT) are fetched IN PARALLEL so the total wait
+    is the slowest single source, not the sum. Cached for a few minutes."""
+    now = dt.datetime.now().timestamp()
+    if use_cache and _NEWS_CACHE["items"] and (now - _NEWS_CACHE["ts"]) < _NEWS_CACHE_TTL:
+        return _NEWS_CACHE["items"][:limit]
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    out: List[dict] = []
+    seen = set()
+    tasks = []
+    with ThreadPoolExecutor(max_workers=len(_RSS_FEEDS) + 1) as ex:
+        for feed in _RSS_FEEDS:
+            tasks.append(ex.submit(_fetch_one_rss, feed))
+        gdelt_future = ex.submit(_fetch_gdelt)
+        results = [t.result() for t in tasks]
+        try:
+            results.append(gdelt_future.result())
+        except Exception:
+            pass
+
+    for lst in results:
+        for it in lst:
+            u = it.get("url")
+            if not u or u in seen:
+                continue
+            seen.add(u)
+            out.append(it)
+
     out.sort(key=lambda x: x.get("ts") or 0, reverse=True)
+    if out:
+        _NEWS_CACHE["ts"] = now
+        _NEWS_CACHE["items"] = out
     return out[:limit]
 
 
