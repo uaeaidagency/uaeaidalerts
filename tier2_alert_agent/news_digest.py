@@ -21,6 +21,7 @@ import datetime as dt
 import email.utils
 import json
 import os
+import re
 import ssl
 import urllib.parse
 import urllib.request
@@ -122,6 +123,16 @@ _CRISIS_KW = (
 )
 
 
+def _clean_html(s: str, limit: int = 240) -> str:
+    """Strip tags/whitespace from an RSS description and truncate to one blurb."""
+    s = re.sub(r"<[^>]+>", " ", s or "")
+    s = re.sub(r"&[a-z]+;", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    if len(s) > limit:
+        s = s[:limit].rsplit(" ", 1)[0] + "…"
+    return s
+
+
 def _parse_rss(xmltext: str, source: str, filt: bool) -> List[dict]:
     items: List[dict] = []
     try:
@@ -142,17 +153,24 @@ def _parse_rss(xmltext: str, source: str, filt: bool) -> List[dict]:
                     link = ch.get("href").strip()
                     break
         pub = (it.findtext("pubDate") or it.findtext("{http://purl.org/dc/elements/1.1/}date") or "").strip()
+        desc = (it.findtext("description")
+                or it.findtext("summary")
+                or it.findtext("{http://www.w3.org/2005/Atom}summary")
+                or "")
         if not title or not link:
             continue
         if filt and not any(k in title.lower() for k in _CRISIS_KW):
             continue
-        iso = ""
+        iso, ts = "", 0.0
         if pub:
             try:
-                iso = email.utils.parsedate_to_datetime(pub).strftime("%Y-%m-%d %H:%M")
+                d = email.utils.parsedate_to_datetime(pub)
+                iso = d.strftime("%Y-%m-%d %H:%M")
+                ts = d.timestamp()
             except Exception:
                 iso = pub[:16]
-        items.append({"title": title, "source": source, "url": link, "date": iso, "country": ""})
+        items.append({"title": title, "source": source, "url": link,
+                      "date": iso, "ts": ts, "overview": _clean_html(desc), "country": ""})
     return items
 
 
@@ -190,17 +208,111 @@ def fetch_world_news(limit: int = 24) -> List[dict]:
             u = a.get("url")
             if not u or u in seen or not _reputable(a.get("domain", "")):
                 continue
-            iso = ""
+            iso, ts = "", 0.0
             s = a.get("seendate", "")
             if len(s) >= 8:
                 iso = f"{s[:4]}-{s[4:6]}-{s[6:8]} {s[8:10] or '00'}:{s[10:12] or '00'}"
+                try:
+                    ts = dt.datetime(int(s[:4]), int(s[4:6]), int(s[6:8]),
+                                     int(s[8:10] or 0), int(s[10:12] or 0),
+                                     tzinfo=dt.timezone.utc).timestamp()
+                except Exception:
+                    ts = 0.0
             seen.add(u)
             out.append({"title": a.get("title") or "", "source": _source_name(a.get("domain", "")),
-                        "url": u, "date": iso, "country": ""})
+                        "url": u, "date": iso, "ts": ts, "overview": "", "country": ""})
 
-    # Newest first (string dates 'YYYY-MM-DD HH:MM' sort correctly; blanks last)
-    out.sort(key=lambda x: x.get("date") or "", reverse=True)
+    # Newest first
+    out.sort(key=lambda x: x.get("ts") or 0, reverse=True)
     return out[:limit]
+
+
+def _rel_time(ts: float) -> str:
+    """'just now' / '12m ago' / '3h ago' / '2d ago' from an epoch timestamp."""
+    if not ts:
+        return ""
+    diff = dt.datetime.now(dt.timezone.utc).timestamp() - ts
+    if diff < 0:
+        diff = 0
+    m = int(diff // 60)
+    if m < 1:
+        return "just now"
+    if m < 60:
+        return f"{m}m ago"
+    h = m // 60
+    if h < 24:
+        return f"{h}h ago"
+    return f"{h // 24}d ago"
+
+
+_STOPWORDS = set((
+    "the a an of in on at to for and or with from by as is are was were be been "
+    "being this that these those over under amid into out new news latest say says "
+    "said after before during world more than two one its their his her them they "
+    "has have had will would could about against amid up down off live update"
+).split())
+
+
+def _sig_words(title: str) -> set:
+    return {w for w in re.findall(r"[a-z]{4,}", (title or "").lower())
+            if w not in _STOPWORDS}
+
+
+def cluster_news(items: List[dict], max_clusters: int = 5) -> List[dict]:
+    """Group headlines that describe the same story (shared significant words)
+    across sources. Returns clusters newest-first, each with a representative
+    headline + overview, the distinct sources, how many covered it, and timing."""
+    clusters: List[dict] = []
+    for it in items:
+        w = _sig_words(it.get("title", ""))
+        best, best_score = None, 0.0
+        for c in clusters:
+            inter = len(w & c["words"])
+            union = len(w | c["words"]) or 1
+            jac = inter / union
+            if inter >= 2 and jac > best_score:
+                best, best_score = c, jac
+        if best and best_score >= 0.18:
+            best["items"].append(it)
+            best["words"] |= w
+        else:
+            clusters.append({"words": set(w), "items": [it]})
+
+    out: List[dict] = []
+    for c in clusters:
+        its = c["items"]
+        rep = max(its, key=lambda x: (len(x.get("overview") or ""), len(x.get("title") or "")))
+        sources, source_seen = [], set()
+        for x in its:
+            s = (x.get("source") or "").strip()
+            if s and s.lower() not in source_seen:
+                source_seen.add(s.lower())
+                sources.append(s)
+        tss = [x.get("ts") for x in its if x.get("ts")]
+        overview = rep.get("overview") or ""
+        if not overview:
+            for x in its:
+                if x.get("overview"):
+                    overview = x["overview"]
+                    break
+        out.append({
+            "title": rep.get("title", ""),
+            "overview": overview,
+            "url": rep.get("url", ""),
+            "sources": sources,
+            "count": len(sources),
+            "latest_ts": max(tss) if tss else 0.0,
+            "earliest_ts": min(tss) if tss else 0.0,
+            "date": rep.get("date", ""),
+        })
+
+    out.sort(key=lambda c: c["latest_ts"], reverse=True)
+    return out[:max_clusters]
+
+
+def fetch_world_news_clusters(max_clusters: int = 5, pool: int = 60) -> List[dict]:
+    """Fetch a wide pool of headlines then cluster them into the top stories."""
+    return cluster_news(fetch_world_news(limit=pool), max_clusters=max_clusters)
 
 
 def _build_email_html(items: List[dict], dashboard_button: Optional[str] = None) -> str:

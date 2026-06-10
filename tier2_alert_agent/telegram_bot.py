@@ -532,31 +532,54 @@ def _format_no_crisis(info: dict, country_name: str, snap: Optional[dict] = None
 
 
 def _format_world_news(n: int = 5) -> str:
-    """Build a Telegram reply summarising the latest worldwide humanitarian /
-    crisis news. Pulls live RSS + GDELT via news_digest (server-side, no CORS)."""
-    items = []
+    """Build a Telegram reply summarising the top worldwide humanitarian /
+    crisis stories. Each story shows the headline, a short overview, when it
+    broke, which sources covered it, and how many sources reported it.
+    Pulls live RSS + GDELT via news_digest (server-side, no CORS)."""
+    clusters = []
     if _NEWS_DIGEST_AVAILABLE:
         try:
-            items = news_digest.fetch_world_news(limit=n)
+            clusters = news_digest.fetch_world_news_clusters(max_clusters=n)
         except Exception as e:
             _log(f"  world news fetch failed: {e}")
-    if not items:
+    if not clusters:
         return ("📰 <b>World News</b>\n\n"
                 "Couldn't reach the news sources right now — please try again "
                 "in a moment.")
+
     lines = ["📰 <b>UAE Aid — Latest World News</b>",
-             f"<i>Top {min(n, len(items))} humanitarian/crisis headlines, newest first</i>\n"]
-    for i, it in enumerate(items[:n], 1):
-        title = _escape_html((it.get("title") or "")[:160])
-        url = it.get("url") or ""
-        src = _escape_html(it.get("source") or "")
-        date = _escape_html(it.get("date") or "")
-        meta = " · ".join([b for b in (src, date) if b])
-        if url:
-            lines.append(f"{i}. <a href=\"{_escape_html(url)}\">{title}</a>"
-                         + (f"\n   <i>{meta}</i>" if meta else ""))
-        else:
-            lines.append(f"{i}. {title}" + (f"\n   <i>{meta}</i>" if meta else ""))
+             f"<i>Top {len(clusters)} humanitarian/crisis stories, newest first</i>"]
+    for i, c in enumerate(clusters, 1):
+        title = _escape_html((c.get("title") or "")[:180])
+        url = c.get("url") or ""
+        head = f"<a href=\"{_escape_html(url)}\">{title}</a>" if url else title
+        block = [f"\n<b>{i}. {head}</b>"]
+
+        overview = (c.get("overview") or "").strip()
+        if overview:
+            block.append(_escape_html(overview[:260]))
+
+        # Timing: when it broke (newest mention) + first-reported if different.
+        rel = news_digest._rel_time(c.get("latest_ts") or 0)
+        first = news_digest._rel_time(c.get("earliest_ts") or 0)
+        timing = ""
+        if rel:
+            timing = f"🕒 {rel}"
+            if first and first != rel:
+                timing += f" · first reported {first}"
+        if timing:
+            block.append(timing)
+
+        # Sources + how many covered it.
+        sources = c.get("sources") or []
+        count = c.get("count") or len(sources)
+        if sources:
+            shown = ", ".join(_escape_html(s) for s in sources[:5])
+            extra = f" +{count - 5} more" if count > 5 else ""
+            plural = "source" if count == 1 else "sources"
+            block.append(f"📰 {count} {plural}: {shown}{extra}")
+
+        lines.append("\n".join(block))
     return "\n".join(lines)
 
 
