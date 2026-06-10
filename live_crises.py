@@ -41,7 +41,7 @@ _REPUTABLE = (
 ).split()
 
 
-def _http_json(url: str, timeout: int = 8) -> Optional[dict]:
+def _http_json(url: str, timeout: int = 6) -> Optional[dict]:
     try:
         req = urllib.request.Request(url, headers={
             "Accept": "application/json",
@@ -53,7 +53,7 @@ def _http_json(url: str, timeout: int = 8) -> Optional[dict]:
         return None
 
 
-def _http_text(url: str, timeout: int = 9) -> Optional[str]:
+def _http_text(url: str, timeout: int = 6) -> Optional[str]:
     try:
         req = urllib.request.Request(url, headers={
             "Accept": "*/*",
@@ -130,7 +130,7 @@ def reliefweb_reports(country: str, limit: int = 5) -> List[dict]:
 # ── GDACS: live multi-hazard alerts, filtered to a country ─────────────────
 def gdacs_alerts(country: str, limit: int = 5) -> List[dict]:
     url = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/EVENTS?alertlevel=Red,Orange"
-    j = _http_json(url, timeout=9)
+    j = _http_json(url, timeout=6)
     if not j:
         return []
     feats = j.get("features") if isinstance(j, dict) else (j or [])
@@ -164,7 +164,7 @@ def gdelt_news(country: str, limit: int = 6) -> List[dict]:
         + urllib.parse.quote(q)
         + "&mode=ArtList&format=json&maxrecords=40&timespan=21d&sort=DateDesc"
     )
-    txt = _http_text(url, timeout=9)
+    txt = _http_text(url, timeout=6)
     out: List[dict] = []
     if not txt:
         return out
@@ -200,10 +200,26 @@ def live_snapshot(country: str) -> dict:
     if cached and (now - cached["ts"]) < _CACHE_TTL:
         return cached["data"]
 
-    disasters = reliefweb_disasters(country)
-    alerts    = gdacs_alerts(country)
-    reports   = reliefweb_reports(country)
-    news      = gdelt_news(country)
+    # Fire all four sources at once instead of one-after-another, so the
+    # total wait is the SLOWEST single source (~a few seconds) rather than
+    # the SUM of all four. Each task is best-effort; a failure returns [].
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _safe(fn):
+        try:
+            return fn(country)
+        except Exception:
+            return []
+
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f_disasters = ex.submit(_safe, reliefweb_disasters)
+        f_alerts    = ex.submit(_safe, gdacs_alerts)
+        f_reports   = ex.submit(_safe, reliefweb_reports)
+        f_news      = ex.submit(_safe, gdelt_news)
+        disasters = f_disasters.result()
+        alerts    = f_alerts.result()
+        reports   = f_reports.result()
+        news      = f_news.result()
 
     data = {
         "country": country,
