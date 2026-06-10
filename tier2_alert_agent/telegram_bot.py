@@ -70,6 +70,12 @@ try:
 except Exception:
     _LIVE_CRISES_AVAILABLE = False
 
+try:
+    import news_digest
+    _NEWS_DIGEST_AVAILABLE = True
+except Exception:
+    _NEWS_DIGEST_AVAILABLE = False
+
 CONFIG_FILE = os.path.join(HERE, "config.json")
 LOG_DIR = os.path.join(HERE, "logs")
 STATE_DIR = os.path.join(HERE, "state")
@@ -314,6 +320,7 @@ def _help_text(countries: List[str]) -> str:
         "• <code>Japan</code> (profile + any live alerts)\n"
         "• <code>What's happening in Lebanon?</code>\n\n"
         "<b>Commands:</b>\n"
+        "<code>news now</code> — latest 5 world humanitarian headlines\n"
         "<code>/list</code> — every curated crisis grouped by tier\n"
         "<code>/help</code> — show this message\n\n"
         f"<i>{len(countries)} curated crises · every country on Earth recognised "
@@ -524,6 +531,35 @@ def _format_no_crisis(info: dict, country_name: str, snap: Optional[dict] = None
     return "\n".join(lines)
 
 
+def _format_world_news(n: int = 5) -> str:
+    """Build a Telegram reply summarising the latest worldwide humanitarian /
+    crisis news. Pulls live RSS + GDELT via news_digest (server-side, no CORS)."""
+    items = []
+    if _NEWS_DIGEST_AVAILABLE:
+        try:
+            items = news_digest.fetch_world_news(limit=n)
+        except Exception as e:
+            _log(f"  world news fetch failed: {e}")
+    if not items:
+        return ("📰 <b>World News</b>\n\n"
+                "Couldn't reach the news sources right now — please try again "
+                "in a moment.")
+    lines = ["📰 <b>UAE Aid — Latest World News</b>",
+             f"<i>Top {min(n, len(items))} humanitarian/crisis headlines, newest first</i>\n"]
+    for i, it in enumerate(items[:n], 1):
+        title = _escape_html((it.get("title") or "")[:160])
+        url = it.get("url") or ""
+        src = _escape_html(it.get("source") or "")
+        date = _escape_html(it.get("date") or "")
+        meta = " · ".join([b for b in (src, date) if b])
+        if url:
+            lines.append(f"{i}. <a href=\"{_escape_html(url)}\">{title}</a>"
+                         + (f"\n   <i>{meta}</i>" if meta else ""))
+        else:
+            lines.append(f"{i}. {title}" + (f"\n   <i>{meta}</i>" if meta else ""))
+    return "\n".join(lines)
+
+
 def _handle_message(token: str, message: dict, scores: List[CrisisScore],
                      authorized: Set[int]) -> None:
     chat = message.get("chat", {})
@@ -567,6 +603,13 @@ def _handle_message(token: str, message: dict, scores: List[CrisisScore],
         return
     if text_lower in ("/list", "list", "/crises", "/countries"):
         _send_message(token, chat_id, _list_text(scores))
+        return
+
+    # World news command — "news now", "news live", "/news", etc.
+    if text_lower in ("news now", "news live", "live news", "now news",
+                      "/news", "news", "latest news", "world news"):
+        _log("  → world news request")
+        _send_message(token, chat_id, _format_world_news(5))
         return
 
     # Country lookup — first against the monitored crisis countries.
