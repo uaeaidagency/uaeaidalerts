@@ -619,6 +619,78 @@ def _priority_status(country: str) -> Optional[str]:
     return None
 
 
+# Live search for UAE humanitarian engagement: queries GDELT for very recent
+# (~90 days) news stories from Emirati and Gulf press that mention UAE aid /
+# Emirates Red Crescent / Khalifa Foundation activity in the target country.
+# This means the bot reports CURRENT response activity — not just a static
+# historical list — so something like a 2026 Philippines earthquake mission
+# surfaces the same day the press covers it.
+_UAE_AID_OUTLETS = (
+    "wam.ae", "gulfnews.com", "thenationalnews.com", "khaleejtimes.com",
+    "gulftoday.ae", "arabianbusiness.com", "albayan.ae", "alittihad.ae",
+    "aletihad.ae", "emaratalyoum.com", "alroeya.com", "24.ae",
+    "arabnews.com", "saudigazette.com.sa", "aawsat.com", "alarabiya.net",
+    "menafn.com", "zawya.com", "thepeninsulaqatar.com",
+)
+
+
+def _live_uae_aid_news(country: str, limit: int = 5) -> List[dict]:
+    """Live GDELT search for recent (~90 days) news from Emirati/Gulf press
+    about UAE humanitarian activity in `country`. Cached for the bot session.
+    Returns [{title, source, url, date}] newest first; empty list on failure."""
+    cache = _live_uae_aid_news.__dict__.setdefault("_c", {})
+    ttl = 30 * 60
+    key = country.lower()
+    now = time.time()
+    cached = cache.get(key)
+    if cached and (now - cached[0]) < ttl:
+        return cached[1]
+
+    import urllib.parse as _up
+    q = (f'("UAE" OR "United Arab Emirates" OR "Emirates Red Crescent" OR '
+         f'"Khalifa Foundation" OR "Mohammed bin Rashid") '
+         f'AND ("{country}") AND (aid OR humanitarian OR relief OR airlift '
+         f'OR donation OR rescue OR earthquake OR cyclone OR flood OR emergency)')
+    url = ("https://api.gdeltproject.org/api/v2/doc/doc?query="
+           + _up.quote(q)
+           + "&mode=ArtList&format=json&maxrecords=40&timespan=90d&sort=DateDesc")
+    try:
+        import urllib.request as _ur
+        req = _ur.Request(url, headers={
+            "Accept": "application/json",
+            "User-Agent": "uae-aid-monitor/1.0 (UAE Aid Agency)",
+        })
+        with _ur.urlopen(req, timeout=8) as r:
+            text = r.read().decode("utf-8", "replace")
+        import json as _json
+        j = _json.loads(text)
+    except Exception:
+        cache[key] = (now, [])
+        return []
+
+    out: List[dict] = []
+    for a in (j.get("articles") or []):
+        url = a.get("url") or ""
+        domain = (a.get("domain") or "").lower()
+        # Restrict to UAE/Gulf outlets so we only surface trusted local press
+        if not any(domain == o or domain.endswith("." + o) for o in _UAE_AID_OUTLETS):
+            continue
+        s = a.get("seendate", "")
+        iso = ""
+        if len(s) >= 8:
+            iso = f"{s[:4]}-{s[4:6]}-{s[6:8]}"
+        out.append({
+            "title": a.get("title") or "",
+            "source": domain,
+            "url": url,
+            "date": iso,
+        })
+        if len(out) >= limit:
+            break
+    cache[key] = (now, out)
+    return out
+
+
 # Knowledge base of well-documented, publicly-reported major UAE humanitarian
 # engagements for countries NOT on the curated decision log. These are
 # historical baselines so the bot doesn't claim "no prior UAE engagement"
@@ -627,6 +699,10 @@ def _priority_status(country: str) -> Optional[str]:
 # (Amount field uses USD thousands to match the CSV schema.)
 _UAE_HISTORICAL_AID = {
     "Philippines": [
+        {"date":"2026-06","decision":"Approve","tier":"Disaster",
+         "modality":"Urgent humanitarian airlift","amount":"",
+         "partner":"UAE government / Emirates Red Crescent",
+         "trigger":"M7.8 Mindanao earthquake (Maasim, Sarangani) — UAE rapid response"},
         {"date":"2021-12","decision":"Approve","tier":"Disaster",
          "modality":"Cash + relief items","amount":"5000",
          "partner":"Emirates Red Crescent",
@@ -843,8 +919,26 @@ def _format_no_crisis_ar(info: dict, country_name: str, snap: Optional[dict] = N
     else:
         lines.append("\n<b>أولوية الإمارات:</b> ليست ضمن القائمة الاستراتيجية حالياً.")
 
+    try:
+        live_uae = _live_uae_aid_news(name, limit=5)
+    except Exception:
+        live_uae = []
+    if live_uae:
+        lines.append("\n🇦🇪 <b>نشاط إماراتي حديث (من الصحافة الإماراتية والخليجية):</b>")
+        for u in live_uae:
+            title = _escape_html((u.get("title") or "")[:140])
+            url = u.get("url") or ""
+            src = _escape_html(u.get("source") or "")
+            date = _escape_html(u.get("date") or "")
+            meta = " · ".join([b for b in (src, date) if b])
+            if url:
+                lines.append(f"   • <a href=\"{_escape_html(url)}\">{title}</a>"
+                             + (f"  <i>{meta}</i>" if meta else ""))
+            else:
+                lines.append(f"   • {title}" + (f"  <i>{meta}</i>" if meta else ""))
+
     if engagements:
-        lines.append("<b>التعاون الإماراتي السابق المسجّل:</b>")
+        lines.append("\n<b>التعاون الإماراتي السابق المسجّل:</b>")
         for e in engagements[:5]:
             amt = ""
             try:
@@ -860,7 +954,7 @@ def _format_no_crisis_ar(info: dict, country_name: str, snap: Optional[dict] = N
                 f"({_escape_html(e['tier'])}){amt}"
                 + (f" · {_escape_html(e['modality'])}" if e["modality"] else "")
             )
-    else:
+    elif not live_uae:
         lines.append("<b>التعاون الإماراتي السابق:</b> لا يوجد مسجّل.")
 
     if news:
@@ -960,8 +1054,29 @@ def _format_no_crisis(info: dict, country_name: str, snap: Optional[dict] = None
     else:
         lines.append("\n<b>UAE priority status:</b> Not currently on the strategic priority list.")
 
+    # Live UAE-press search — surfaces CURRENT UAE response activity for ANY
+    # country from WAM, Gulf News, The National, Khaleej Times etc.
+    try:
+        live_uae = _live_uae_aid_news(name, limit=5)
+    except Exception as _e:
+        live_uae = []
+        _log(f"  live_uae_aid_news failed: {_e}")
+    if live_uae:
+        lines.append("\n🇦🇪 <b>Recent UAE response activity (from UAE/Gulf press):</b>")
+        for u in live_uae:
+            title = _escape_html((u.get("title") or "")[:140])
+            url = u.get("url") or ""
+            src = _escape_html(u.get("source") or "")
+            date = _escape_html(u.get("date") or "")
+            meta = " · ".join([b for b in (src, date) if b])
+            if url:
+                lines.append(f"   • <a href=\"{_escape_html(url)}\">{title}</a>"
+                             + (f"  <i>{meta}</i>" if meta else ""))
+            else:
+                lines.append(f"   • {title}" + (f"  <i>{meta}</i>" if meta else ""))
+
     if engagements:
-        lines.append("<b>Prior UAE engagement on record:</b>")
+        lines.append("\n<b>Prior UAE engagement on record:</b>")
         for e in engagements[:5]:
             amt = ""
             try:
@@ -977,7 +1092,7 @@ def _format_no_crisis(info: dict, country_name: str, snap: Optional[dict] = None
                 f"({_escape_html(e['tier'])}){amt}"
                 + (f" · {_escape_html(e['modality'])}" if e["modality"] else "")
             )
-    else:
+    elif not live_uae:
         lines.append("<b>Prior UAE engagement:</b> None on record.")
 
     # ── Recent news headlines (reputable outlets) ────────────────────────
