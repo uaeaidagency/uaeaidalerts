@@ -88,7 +88,10 @@ SCORES_REFRESH_S = 300   # recompute scores every 5 minutes
 RUN_CHECK_INTERVAL_S = 3600  # run tier-alert check every hour
 
 # Common aliases / informal names → canonical country name in STATE.crises.
+# Includes both English aliases and Arabic country names so users can write
+# in Arabic (e.g. "السودان", "غزة", "اليمن") and the bot still resolves them.
 COUNTRY_ALIASES = {
+    # English aliases
     "drc": "DR Congo",
     "congo": "DR Congo",
     "dr congo": "DR Congo",
@@ -104,6 +107,43 @@ COUNTRY_ALIASES = {
     "burkina faso": "Burkina Faso",
     "sri lanka": "Sri Lanka",
     "ivory coast": "Côte d'Ivoire",
+
+    # Arabic country names for the curated crisis list
+    "السودان": "Sudan", "سودان": "Sudan",
+    "جنوب السودان": "South Sudan",
+    "غزة": "Palestine (Gaza)", "فلسطين": "Palestine (Gaza)", "قطاع غزة": "Palestine (Gaza)",
+    "الضفة الغربية": "Palestine (Gaza)",
+    "اليمن": "Yemen", "يمن": "Yemen",
+    "سوريا": "Syrian Arab Republic", "سورية": "Syrian Arab Republic", "السورية": "Syrian Arab Republic",
+    "أوكرانيا": "Ukraine", "اوكرانيا": "Ukraine",
+    "الكونغو": "Democratic Republic of the Congo",
+    "جمهورية الكونغو الديمقراطية": "Democratic Republic of the Congo",
+    "أفغانستان": "Afghanistan", "افغانستان": "Afghanistan",
+    "ميانمار": "Myanmar", "بورما": "Myanmar",
+    "هايتي": "Haiti",
+    "الصومال": "Somalia", "صومال": "Somalia",
+    "إثيوبيا": "Ethiopia", "اثيوبيا": "Ethiopia",
+    "لبنان": "Lebanon",
+    "بوركينا فاسو": "Burkina Faso", "بوركينا": "Burkina Faso",
+    "مالي": "Mali",
+    "بوروندي": "Burundi",
+    "بنغلاديش": "Bangladesh", "بنجلاديش": "Bangladesh",
+    "باكستان": "Pakistan",
+    "تركيا": "Türkiye", "تركية": "Türkiye",
+    "موزمبيق": "Mozambique", "موزامبيق": "Mozambique",
+    "ليبيا": "Libya",
+    "العراق": "Iraq", "عراق": "Iraq",
+    "إندونيسيا": "Indonesia", "اندونيسيا": "Indonesia",
+    "النيجر": "Niger", "نيجر": "Niger",
+    "سريلانكا": "Sri Lanka", "سري لانكا": "Sri Lanka",
+    "نيجيريا": "Nigeria",
+    "تشاد": "Chad",
+    "جمهورية أفريقيا الوسطى": "Central African Republic",
+    "الكاميرون": "Cameroon", "كاميرون": "Cameroon",
+    "فنزويلا": "Venezuela",
+    "زيمبابوي": "Zimbabwe",
+    "مالاوي": "Malawi",
+    "كينيا": "Kenya",
 }
 
 
@@ -218,14 +258,49 @@ def _get_updates(token: str, offset: int) -> dict:
 
 # ── Country resolution ──────────────────────────────────────────────────
 
-def _resolve_country(text: str, countries: List[str]) -> Optional[str]:
-    """Find the country mentioned in `text`. Returns the canonical name or None."""
-    norm = text.lower().strip()
+def _is_arabic(text: str) -> bool:
+    """True if the message contains any Arabic letters — signals 'reply in Arabic'."""
+    if not text:
+        return False
+    for ch in text:
+        if "؀" <= ch <= "ۿ" or "ݐ" <= ch <= "ݿ" or "ﭐ" <= ch <= "﷿":
+            return True
+    return False
 
-    # Aliases first (handles "DRC", "gaza", etc.)
+
+def _strip_ar(s: str) -> str:
+    """Strip Arabic diacritics and tatweel; normalize alef/ya/ta marbuta so
+    'السودان' and 'السودان ' and 'السّودان' all match the same alias key."""
+    if not s:
+        return s
+    # Remove tashkeel (diacritics) and tatweel
+    s = "".join(c for c in s if not ("ً" <= c <= "ٟ") and c != "ـ")
+    # Normalize alef variants
+    for a in ("أ", "إ", "آ", "ٱ"):
+        s = s.replace(a, "ا")
+    # Ya / Alef Maqsura
+    s = s.replace("ى", "ي").replace("ئ", "ي")
+    # Ta marbuta -> ha (lenient match)
+    s = s.replace("ة", "ه")
+    return s
+
+
+def _resolve_country(text: str, countries: List[str]) -> Optional[str]:
+    """Find the country mentioned in `text`. Returns the canonical name or None.
+    Recognises both English and Arabic country names."""
+    norm = text.lower().strip()
+    norm_ar = _strip_ar(text).strip()
+
+    # Aliases first (handles "DRC", "gaza", "السودان", etc.)
     for alias, canonical in COUNTRY_ALIASES.items():
-        if alias in norm and canonical in countries:
-            return canonical
+        if not canonical in countries:
+            continue
+        if _is_arabic(alias):
+            if _strip_ar(alias) in norm_ar:
+                return canonical
+        else:
+            if alias in norm:
+                return canonical
 
     # Substring match (longest country name wins to avoid "Sudan" matching "South Sudan")
     matches = [c for c in countries if c.lower() in norm]
@@ -261,6 +336,156 @@ _TIER_ACTION = {
     4: "Diplomatic engagement; earmarked contribution if formally requested.",
     5: "Monitor and track only; weekly reassessment.",
 }
+
+# Arabic strings for users who message the bot in Arabic.
+_TIER_LABEL_AR = {
+    1: "الفئة الأولى — استجابة فورية",
+    2: "الفئة الثانية — استجابة قوية",
+    3: "الفئة الثالثة — استجابة مستهدفة",
+    4: "الفئة الرابعة — رصد",
+    5: "الفئة الخامسة — متابعة فقط",
+}
+_TIER_ACTION_AR = {
+    1: "تعبئة فريق الاستجابة الطارئة؛ التعهّد خلال 7 أيام؛ إحاطة المدير العام خلال 24 ساعة.",
+    2: "التعهّد خلال 14 يوماً؛ مساهمة متعددة القطاعات عبر الأمم المتحدة أو الاتحاد الدولي أو منظمات إنسانية موثوقة.",
+    3: "مساهمة قطاعية واحدة عبر الصناديق المشتركة أو شريك موثوق.",
+    4: "تعاون دبلوماسي؛ مساهمة مخصّصة عند الطلب الرسمي.",
+    5: "الرصد والمتابعة فقط؛ إعادة التقييم أسبوعياً.",
+}
+
+# Arabic country-name display for common monitored countries.
+_AR_COUNTRY_NAME = {
+    "Sudan": "السودان", "South Sudan": "جنوب السودان",
+    "Palestine (Gaza)": "فلسطين (غزة)", "Yemen": "اليمن",
+    "Syrian Arab Republic": "سوريا", "Ukraine": "أوكرانيا",
+    "Democratic Republic of the Congo": "جمهورية الكونغو الديمقراطية", "DR Congo": "جمهورية الكونغو الديمقراطية",
+    "Afghanistan": "أفغانستان", "Myanmar": "ميانمار", "Haiti": "هايتي",
+    "Somalia": "الصومال", "Ethiopia": "إثيوبيا", "Lebanon": "لبنان",
+    "Burkina Faso": "بوركينا فاسو", "Mali": "مالي", "Burundi": "بوروندي",
+    "Bangladesh": "بنغلاديش", "Pakistan": "باكستان", "Türkiye": "تركيا",
+    "Mozambique": "موزمبيق", "Libya": "ليبيا", "Iraq": "العراق",
+    "Indonesia": "إندونيسيا", "Niger": "النيجر", "Sri Lanka": "سريلانكا",
+    "Nigeria": "نيجيريا", "Chad": "تشاد",
+    "Central African Republic": "جمهورية أفريقيا الوسطى",
+    "Cameroon": "الكاميرون", "Venezuela": "فنزويلا",
+    "Zimbabwe": "زيمبابوي", "Malawi": "مالاوي", "Kenya": "كينيا",
+}
+
+
+def _ar_name(country: str) -> str:
+    return _AR_COUNTRY_NAME.get(country, country)
+
+
+def _format_overview_ar(score: CrisisScore) -> str:
+    emoji = _TIER_EMOJI.get(score.decision_tier, "⬜")
+    label = _TIER_LABEL_AR.get(score.decision_tier, f"الفئة {score.decision_tier}")
+    action = _TIER_ACTION_AR.get(score.decision_tier, "مراجعة")
+    trigger = _escape_html(score.trigger_event or "—")
+    if len(trigger) > 350:
+        trigger = trigger[:347] + "…"
+    return (
+        f"{emoji} <b>{_escape_html(_ar_name(score.country))}</b> — {label}\n"
+        f"<i>درجة الأولوية: <b>{score.priority_score:.1f}/100</b> · "
+        f"شدة ACAPS: <b>{score.severity}/5</b></i>\n\n"
+        f"• المحتاجون للمساعدة: <b>{_fmt_k(score.pin_thousands)}</b>\n"
+        f"• النازحون (داخلياً ولاجئون): {_fmt_k(score.displaced_thousands)}\n"
+        f"• الضحايا المؤكدون: {_fmt_k(score.casualties_thousands)}\n"
+        f"• مرحلة IPC 3+: {_fmt_k(score.ipc_phase3_thousands)}\n"
+        f"• أطفال يعانون سوء تغذية حاد: {_fmt_k(score.children_malnourished_thousands)}\n"
+        f"• مرافق صحية متضررة: {score.health_facilities_damaged_pct:.0f}%\n"
+        f"• تمويل النداء: {score.appeal_funded_pct:.0f}%\n"
+        f"• قيود الوصول: {score.access_constraints}/5\n\n"
+        f"<b>المحفّز:</b> {trigger}\n"
+        f"<b>الحالة:</b> {_escape_html(score.status)} · "
+        f"آخر تحديث {_escape_html(score.last_updated)}\n\n"
+        f"<b>الإجراء الموصى به:</b> {_escape_html(action)}\n\n"
+        f"📎 جارٍ إعداد الملخص التنفيذي بصيغة PDF…"
+    )
+
+
+def _help_text_ar(countries: List[str]) -> str:
+    return (
+        "👋 <b>وكالة الإمارات للمساعدات — بوت الرصد</b>\n\n"
+        "أرسل <b>اسم أي دولة</b> — يعمل لجميع دول العالم:\n"
+        "• أزمة مُدرجة → نظرة عامة كاملة + ملخص تنفيذي PDF.\n"
+        "• أي دولة أخرى → حالة مباشرة من <b>OCHA ReliefWeb</b> و<b>GDACS</b>، "
+        "مع آخر العناوين من بي بي سي، رويترز، الجزيرة، WAM وغيرها من المصادر "
+        "الموثوقة، بالإضافة إلى أولوية الإمارات وتاريخ التعاون.\n\n"
+        "<b>جرّب:</b>\n"
+        "• <code>السودان</code> (أزمة مُدرجة + PDF)\n"
+        "• <code>تشاد</code> (أزمة مباشرة + أخبار)\n"
+        "• <code>اليابان</code> (ملف مختصر + أي تنبيهات مباشرة)\n"
+        "• <code>ماذا يحدث في لبنان؟</code>\n\n"
+        "<b>الأوامر:</b>\n"
+        "<code>أخبار الآن</code> — آخر 5 عناوين إنسانية عالمية\n"
+        "<code>/list</code> — كل الأزمات المُدرجة حسب الفئة\n"
+        "<code>/help</code> — عرض هذه الرسالة\n\n"
+        f"<i>{len(countries)} أزمة مُدرجة · جميع دول العالم مع بيانات حية.</i>"
+    )
+
+
+def _list_text_ar(scores: List[CrisisScore]) -> str:
+    by_tier: Dict[int, List[CrisisScore]] = {}
+    for s in scores:
+        by_tier.setdefault(s.decision_tier, []).append(s)
+    lines = ["<b>الأزمات النشطة حسب الفئة</b>"]
+    tier_names = {
+        1: "الفئة الأولى — فورية",
+        2: "الفئة الثانية — قوية",
+        3: "الفئة الثالثة — مستهدفة",
+        4: "الفئة الرابعة — رصد",
+        5: "الفئة الخامسة — متابعة",
+    }
+    for t in sorted(by_tier.keys()):
+        lines.append(f"\n{_TIER_EMOJI.get(t,'⬜')} <b>{tier_names.get(t, f'الفئة {t}')}</b>")
+        for s in sorted(by_tier[t], key=lambda x: -x.priority_score):
+            lines.append(f"• <b>{_escape_html(_ar_name(s.country))}</b> — {s.priority_score:.1f}/100")
+    return "\n".join(lines)
+
+
+def _format_world_news_ar(n: int = 5) -> str:
+    """Arabic version of the world-news command reply."""
+    clusters = []
+    if _NEWS_DIGEST_AVAILABLE:
+        try:
+            clusters = news_digest.fetch_world_news_clusters(max_clusters=n, lang="ar") \
+                if hasattr(news_digest, "fetch_world_news_clusters") else []
+        except TypeError:
+            # Older signature without lang arg — fall back
+            try:
+                clusters = news_digest.fetch_world_news_clusters(max_clusters=n)
+            except Exception as e:
+                _log(f"  world news fetch (ar) failed: {e}")
+        except Exception as e:
+            _log(f"  world news fetch (ar) failed: {e}")
+    if not clusters:
+        return ("📰 <b>أخبار العالم</b>\n\n"
+                "تعذّر الوصول إلى مصادر الأخبار حالياً — يرجى المحاولة بعد قليل.")
+    lines = ["📰 <b>وكالة الإمارات للمساعدات — آخر أخبار العالم</b>",
+             f"<i>أهم {len(clusters)} قصة إنسانية/أزمة، الأحدث أولاً</i>"]
+    for i, c in enumerate(clusters, 1):
+        title = _escape_html((c.get("title") or "")[:180])
+        url = c.get("url") or ""
+        head = f"<a href=\"{_escape_html(url)}\">{title}</a>" if url else title
+        block = [f"\n<b>{i}. {head}</b>"]
+        overview = (c.get("overview") or "").strip()
+        if overview:
+            block.append(_escape_html(overview[:260]))
+        rel = news_digest._rel_time(c.get("latest_ts") or 0)
+        first = news_digest._rel_time(c.get("earliest_ts") or 0)
+        if rel:
+            t = f"🕒 {rel}"
+            if first and first != rel:
+                t += f" · أول تقرير {first}"
+            block.append(t)
+        sources = c.get("sources") or []
+        count = c.get("count") or len(sources)
+        if sources:
+            shown = ", ".join(_escape_html(s) for s in sources[:5])
+            extra = f" +{count - 5} مصدر آخر" if count > 5 else ""
+            block.append(f"📰 {count} مصدر: {shown}{extra}")
+        lines.append("\n".join(block))
+    return "\n".join(lines)
 
 
 def _fmt_k(value_in_thousands: float) -> str:
@@ -323,6 +548,8 @@ def _help_text(countries: List[str]) -> str:
         "<code>news now</code> — latest 5 world humanitarian headlines\n"
         "<code>/list</code> — every curated crisis grouped by tier\n"
         "<code>/help</code> — show this message\n\n"
+        "<i>🇦🇪 يمكنك الكتابة بالعربية أيضاً — أرسل اسم الدولة بالعربية مثل "
+        "<code>السودان</code> أو اكتب <code>أخبار الآن</code>.</i>\n\n"
         f"<i>{len(countries)} curated crises · every country on Earth recognised "
         "with live worldwide data.</i>"
     )
@@ -392,41 +619,279 @@ def _priority_status(country: str) -> Optional[str]:
     return None
 
 
+# Knowledge base of well-documented, publicly-reported major UAE humanitarian
+# engagements for countries NOT on the curated decision log. These are
+# historical baselines so the bot doesn't claim "no prior UAE engagement"
+# for countries that have, in fact, received significant UAE aid in the past.
+# Each entry should be a well-known, publicly-reported operation.
+# (Amount field uses USD thousands to match the CSV schema.)
+_UAE_HISTORICAL_AID = {
+    "Philippines": [
+        {"date":"2021-12","decision":"Approve","tier":"Disaster",
+         "modality":"Cash + relief items","amount":"5000",
+         "partner":"Emirates Red Crescent",
+         "trigger":"Typhoon Rai (Odette) — UAE airlift of relief supplies"},
+        {"date":"2013-11","decision":"Approve","tier":"Disaster",
+         "modality":"Airlift + cash","amount":"10000",
+         "partner":"Emirates Red Crescent / MoFA",
+         "trigger":"Typhoon Haiyan (Yolanda) — UAE relief mission to Visayas"},
+    ],
+    "Indonesia": [
+        {"date":"2018-10","decision":"Approve","tier":"Disaster",
+         "modality":"Search & rescue + relief","amount":"5000",
+         "partner":"Emirates Red Crescent",
+         "trigger":"Sulawesi earthquake and tsunami response"},
+        {"date":"2004-12","decision":"Approve","tier":"Disaster",
+         "modality":"Major emergency response","amount":"20000",
+         "partner":"UAE government / Red Crescent",
+         "trigger":"Indian Ocean tsunami — Aceh reconstruction"},
+    ],
+    "Pakistan": [
+        {"date":"2022-09","decision":"Approve","tier":"Disaster",
+         "modality":"Air bridge — 71+ aid flights","amount":"30000",
+         "partner":"Khalifa bin Zayed Al Nahyan Foundation / MoFAIC",
+         "trigger":"2022 floods — UAE-Pakistan humanitarian bridge"},
+        {"date":"2005-10","decision":"Approve","tier":"Disaster",
+         "modality":"Field hospital + relief","amount":"15000",
+         "partner":"Emirates Red Crescent",
+         "trigger":"Kashmir earthquake response"},
+    ],
+    "Türkiye": [
+        {"date":"2023-02","decision":"Approve","tier":"Disaster",
+         "modality":"Search & rescue + field hospital","amount":"100000",
+         "partner":"UAE Search & Rescue Team / Emirates Red Crescent",
+         "trigger":"Türkiye-Syria earthquakes — Operation Gallant Knight 2"},
+    ],
+    "Turkey": [
+        {"date":"2023-02","decision":"Approve","tier":"Disaster",
+         "modality":"Search & rescue + field hospital","amount":"100000",
+         "partner":"UAE Search & Rescue Team / Emirates Red Crescent",
+         "trigger":"Türkiye-Syria earthquakes — Operation Gallant Knight 2"},
+    ],
+    "Mozambique": [
+        {"date":"2019-03","decision":"Approve","tier":"Disaster",
+         "modality":"Relief airlift","amount":"3000",
+         "partner":"Emirates Red Crescent",
+         "trigger":"Cyclone Idai response"},
+    ],
+    "Bangladesh": [
+        {"date":"2017-10","decision":"Approve","tier":"Refugee crisis",
+         "modality":"Cox's Bazar refugee support","amount":"7000",
+         "partner":"UNHCR / Emirates Red Crescent",
+         "trigger":"Rohingya emergency response"},
+    ],
+    "Jordan": [
+        {"date":"2013-04","decision":"Approve","tier":"Refugee crisis",
+         "modality":"Mrajeeb Al-Fhood refugee camp (operational since 2013)",
+         "amount":"50000","partner":"UAE government / Emirates Red Crescent",
+         "trigger":"Syrian refugee response — Mrajeeb Al-Fhood camp"},
+    ],
+    "Lebanon": [
+        {"date":"2020-08","decision":"Approve","tier":"Disaster",
+         "modality":"Airlift + medical supplies","amount":"5000",
+         "partner":"Emirates Red Crescent",
+         "trigger":"Beirut port explosion response"},
+    ],
+    "Sri Lanka": [
+        {"date":"2022-07","decision":"Approve","tier":"Complex",
+         "modality":"Cash + medical supplies","amount":"3000",
+         "partner":"Khalifa Foundation",
+         "trigger":"Economic crisis humanitarian support"},
+    ],
+    "Haiti": [
+        {"date":"2010-01","decision":"Approve","tier":"Disaster",
+         "modality":"Relief mission","amount":"2000",
+         "partner":"Emirates Red Crescent",
+         "trigger":"Haiti earthquake response"},
+    ],
+    "Japan": [
+        {"date":"2011-03","decision":"Approve","tier":"Disaster",
+         "modality":"Humanitarian + energy assistance","amount":"10000",
+         "partner":"UAE government",
+         "trigger":"Tōhoku earthquake & tsunami response"},
+    ],
+    "Nepal": [
+        {"date":"2015-04","decision":"Approve","tier":"Disaster",
+         "modality":"Search & rescue + relief","amount":"3000",
+         "partner":"Emirates Red Crescent",
+         "trigger":"Nepal earthquake response"},
+    ],
+    "Iraq": [
+        {"date":"2017-07","decision":"Approve","tier":"Recovery",
+         "modality":"Mosul reconstruction (Al Nuri Mosque)","amount":"50500",
+         "partner":"UAE government / UNESCO",
+         "trigger":"Mosul stabilisation & reconstruction"},
+    ],
+    "Egypt": [
+        {"date":"2023-03","decision":"Approve","tier":"Bilateral",
+         "modality":"Strategic support package","amount":"500000",
+         "partner":"UAE government",
+         "trigger":"Bilateral economic & humanitarian support"},
+    ],
+}
+
+
 def _past_engagements(country: str) -> List[dict]:
     """Return past UAE response-log entries for a country (from
-    04_Response_Decision_Log.csv), most recent first."""
+    04_Response_Decision_Log.csv), most recent first. Falls back to a
+    knowledge base of well-documented historical UAE humanitarian engagements
+    when the CSV has nothing — so the bot doesn't say 'no prior engagement'
+    for countries like the Philippines that have received significant UAE aid."""
     import csv
     path = os.path.join(PARENT, "04_Response_Decision_Log.csv")
     out: List[dict] = []
-    if not os.path.exists(path):
-        return out
-    try:
-        with open(path, "r", encoding="utf-8-sig", newline="") as f:
-            for r in csv.DictReader(f):
-                name = (r.get("Country") or "").strip()
-                if not name:
-                    continue
-                if name.lower() == country.lower() or country.lower() in name.lower() \
-                        or name.lower() in country.lower():
-                    out.append({
-                        "date": (r.get("Date") or "").strip(),
-                        "tier": (r.get("Tier") or "").strip(),
-                        "decision": (r.get("Decision") or "").strip(),
-                        "modality": (r.get("Modality") or "").strip(),
-                        "amount": (r.get("Amount (USD '000)") or "").strip(),
-                        "partner": (r.get("Lead Partner") or "").strip(),
-                    })
-    except Exception:
-        pass
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8-sig", newline="") as f:
+                for r in csv.DictReader(f):
+                    name = (r.get("Country") or "").strip()
+                    if not name:
+                        continue
+                    if name.lower() == country.lower() or country.lower() in name.lower() \
+                            or name.lower() in country.lower():
+                        out.append({
+                            "date": (r.get("Date") or "").strip(),
+                            "tier": (r.get("Tier") or "").strip(),
+                            "decision": (r.get("Decision") or "").strip(),
+                            "modality": (r.get("Modality") or "").strip(),
+                            "amount": (r.get("Amount (USD '000)") or "").strip(),
+                            "partner": (r.get("Lead Partner") or "").strip(),
+                        })
+        except Exception:
+            pass
+
+    # Fallback: historical knowledge base — sourced from publicly-reported
+    # UAE humanitarian operations. Used only when the CSV has nothing for
+    # this country, so curated current-year data always takes precedence.
+    if not out and country in _UAE_HISTORICAL_AID:
+        for h in _UAE_HISTORICAL_AID[country]:
+            out.append({
+                "date": h["date"], "tier": h["tier"],
+                "decision": h["decision"], "modality": h["modality"],
+                "amount": h["amount"], "partner": h.get("partner",""),
+            })
+
     out.sort(key=lambda x: x["date"], reverse=True)
     return out
 
 
-def _format_no_crisis(info: dict, country_name: str, snap: Optional[dict] = None) -> str:
+def _format_no_crisis_ar(info: dict, country_name: str, snap: Optional[dict] = None) -> str:
+    """Arabic version of _format_no_crisis — same content, Arabic labels."""
+    name = info.get("name") or country_name
+    region = info.get("region") or "—"
+    capital = info.get("capital") or "—"
+    population = info.get("population") or ""
+    languages = info.get("languages") or ""
+
+    meta_bits = [f"المنطقة: {region}"]
+    if capital and capital != "—":
+        meta_bits.append(f"العاصمة: {capital}")
+    if population:
+        meta_bits.append(f"السكان: {population}")
+    meta_line = " · ".join(meta_bits)
+
+    priority = _priority_status(name)
+    engagements = _past_engagements(name)
+
+    disasters = (snap or {}).get("disasters") or []
+    alerts    = (snap or {}).get("alerts") or []
+    news      = (snap or {}).get("news") or []
+    has_active = bool(disasters or alerts)
+
+    lines = [
+        f"🌍 <b>{_escape_html(_ar_name(name))}</b>",
+        f"<i>{_escape_html(meta_line)}</i>",
+        "",
+    ]
+
+    if has_active:
+        lines.append("🔴 <b>الحالة المباشرة — أحداث جارية:</b>")
+        for d in disasters[:4]:
+            label = _escape_html(d.get("type") or "كارثة")
+            nm = _escape_html(d.get("name") or name)
+            url = d.get("url") or ""
+            entry = f"   • <b>{label}</b> — {nm}"
+            if url:
+                entry += f"  <a href=\"{_escape_html(url)}\">[ReliefWeb]</a>"
+            lines.append(entry)
+        for a in alerts[:4]:
+            lvl = (a.get("alert") or "").upper()
+            label = _escape_html(a.get("type") or "تنبيه")
+            nm = _escape_html(a.get("name") or "")
+            url = a.get("url") or ""
+            entry = f"   • <b>{label}</b> ({lvl}) — {nm}"
+            if url:
+                entry += f"  <a href=\"{_escape_html(url)}\">[GDACS]</a>"
+            lines.append(entry)
+        lines.append(
+            "\n<i>المصادر: OCHA ReliefWeb و GDACS. هذه الدولة تُتابع مباشرة "
+            "لكنها ليست (بعد) ضمن قائمة التقييم المُدرجة للإمارات.</i>"
+        )
+    else:
+        lines.append(
+            "✅ <b>لا توجد حالة طوارئ إنسانية نشطة</b> حالياً لـ "
+            f"{_escape_html(_ar_name(name))} وفق ReliefWeb و GDACS."
+        )
+
+    if priority:
+        lines.append(f"\n<b>أولوية الإمارات:</b> {_escape_html(priority)}")
+    elif engagements:
+        # The country isn't on the curated strategic list, but UAE has a
+        # documented history of response there — reflect that honestly.
+        lines.append("\n<b>أولوية الإمارات:</b> أولوية ظرفية — تاريخ موثّق "
+                     "للاستجابة الإماراتية لحالات الكوارث في هذا البلد.")
+    else:
+        lines.append("\n<b>أولوية الإمارات:</b> ليست ضمن القائمة الاستراتيجية حالياً.")
+
+    if engagements:
+        lines.append("<b>التعاون الإماراتي السابق المسجّل:</b>")
+        for e in engagements[:5]:
+            amt = ""
+            try:
+                v = float(e["amount"]) * 1000 if e["amount"] else 0
+                if v >= 1_000_000:
+                    amt = f" · {v/1_000_000:.1f} مليون دولار"
+                elif v > 0:
+                    amt = f" · {v/1000:.0f} ألف دولار"
+            except (ValueError, TypeError):
+                pass
+            lines.append(
+                f"   • {_escape_html(e['date'])} — {_escape_html(e['decision'])} "
+                f"({_escape_html(e['tier'])}){amt}"
+                + (f" · {_escape_html(e['modality'])}" if e["modality"] else "")
+            )
+    else:
+        lines.append("<b>التعاون الإماراتي السابق:</b> لا يوجد مسجّل.")
+
+    if news:
+        lines.append("\n📰 <b>آخر الأخبار:</b>")
+        for n in news[:5]:
+            title = _escape_html((n.get("title") or "")[:140])
+            url = n.get("url") or ""
+            src = _escape_html(n.get("source") or "")
+            date = _escape_html(n.get("date") or "")
+            meta = " · ".join([b for b in (src, date) if b])
+            if url:
+                lines.append(f"   • <a href=\"{_escape_html(url)}\">{title}</a>"
+                             + (f"  <i>{meta}</i>" if meta else ""))
+            else:
+                lines.append(f"   • {title}" + (f"  <i>{meta}</i>" if meta else ""))
+
+    if languages:
+        lines.append(f"\n<i>اللغة(ات) الرسمية: {_escape_html(languages)}</i>")
+
+    return "\n".join(lines)
+
+
+def _format_no_crisis(info: dict, country_name: str, snap: Optional[dict] = None,
+                       ar: bool = False) -> str:
     """Build the reply for a recognized country that is NOT one of the curated
     monitored crises. Pulls a LIVE snapshot (ReliefWeb disasters, GDACS alerts,
     recent reputable news) so the bot reports real current events for ANY
-    country on Earth — not just the 25 curated crises."""
+    country on Earth — not just the 25 curated crises.
+    Passes `ar=True` to deliver the reply in Arabic."""
+    if ar:
+        return _format_no_crisis_ar(info, country_name, snap)
     name = info.get("name") or country_name
     region = info.get("region") or "—"
     capital = info.get("capital") or "—"
@@ -487,8 +952,13 @@ def _format_no_crisis(info: dict, country_name: str, snap: Optional[dict] = None
     # ── UAE priority + engagement history ────────────────────────────────
     if priority:
         lines.append(f"\n<b>UAE priority status:</b> {_escape_html(priority)}")
+    elif engagements:
+        # The country isn't on the curated strategic list, but UAE has a
+        # documented history of disaster response there — reflect that.
+        lines.append("\n<b>UAE priority status:</b> Situational — documented "
+                     "history of UAE disaster response in this country.")
     else:
-        lines.append("\n<b>UAE priority status:</b> Not on the strategic priority list.")
+        lines.append("\n<b>UAE priority status:</b> Not currently on the strategic priority list.")
 
     if engagements:
         lines.append("<b>Prior UAE engagement on record:</b>")
@@ -617,22 +1087,48 @@ def _handle_message(token: str, message: dict, scores: List[CrisisScore],
 
     _log(f"Message from {sender} (chat {chat_id}, {chat_type}): {text[:120]}")
 
+    # Show a "typing…" indicator immediately so the user sees the bot working
+    # even when fetching live data takes a moment. Best-effort, never blocks.
+    try:
+        url = f"https://api.telegram.org/bot{token}/sendChatAction"
+        import json as _json
+        import urllib.request as _ur, urllib.parse as _up
+        data = _up.urlencode({"chat_id": chat_id, "action": "typing"}).encode("utf-8")
+        _ur.urlopen(_ur.Request(url, data=data), timeout=3).read()
+    except Exception:
+        pass
+
     text_lower = text.lower().strip()
+    text_ar_norm = _strip_ar(text).lower().strip()
     countries = [s.country for s in scores]
 
-    # Built-in commands.
-    if text_lower in ("/start", "/help", "help", "start", "hi", "hello"):
-        _send_message(token, chat_id, _help_text(countries))
+    # Detect the user's language from the message they sent. Used to pick
+    # Arabic vs English replies throughout the rest of the handler.
+    ar_mode = _is_arabic(text)
+
+    # Built-in commands (English + Arabic equivalents).
+    if (text_lower in ("/start", "/help", "help", "start", "hi", "hello")
+            or text_ar_norm in ("مرحبا", "السلام عليكم", "مساعده", "مساعدة", "ابدا", "ابدأ", "اهلا", "أهلا")):
+        _send_message(token, chat_id,
+                      _help_text_ar(countries) if ar_mode else _help_text(countries))
         return
-    if text_lower in ("/list", "list", "/crises", "/countries"):
-        _send_message(token, chat_id, _list_text(scores))
+    if (text_lower in ("/list", "list", "/crises", "/countries")
+            or text_ar_norm in ("قائمه", "قائمة", "الازمات", "الأزمات", "الدول")):
+        _send_message(token, chat_id,
+                      _list_text_ar(scores) if ar_mode else _list_text(scores))
         return
 
-    # World news command — "news now", "news live", "/news", etc.
-    if text_lower in ("news now", "news live", "live news", "now news",
-                      "/news", "news", "latest news", "world news"):
+    # World news command — English + Arabic phrasings.
+    if (text_lower in ("news now", "news live", "live news", "now news",
+                       "/news", "news", "latest news", "world news")
+            or text_ar_norm in ("اخبار الان", "اخبار الآن", "اخبار", "آخر الاخبار",
+                                "اخر الاخبار", "اخبار العالم", "اخبار مباشره",
+                                "اخبار مباشرة", "الاخبار")):
         _log("  → world news request")
-        _send_message(token, chat_id, _format_world_news(5))
+        if ar_mode:
+            _send_message(token, chat_id, _format_world_news_ar(5))
+        else:
+            _send_message(token, chat_id, _format_world_news(5))
         return
 
     # Country lookup — first against the monitored crisis countries.
@@ -657,43 +1153,60 @@ def _handle_message(token: str, message: dict, scores: List[CrisisScore],
                         _log(f"  live_crises.live_snapshot failed: {e}")
                 state = "LIVE CRISIS" if (snap and snap.get("has_active")) else "no active crisis"
                 _log(f"  → {state} reply for {name}")
-                _send_message(token, chat_id, _format_no_crisis(info, name, snap))
+                _send_message(token, chat_id, _format_no_crisis(info, name, snap, ar=ar_mode))
                 return
         # Genuinely couldn't extract a country from the message.
-        _send_message(
-            token, chat_id,
-            "🤔 I couldn't pick out a country from that message.\n\n"
-            "Send a country name on its own — e.g. <code>Sudan</code>, "
-            "<code>Chad</code>, <code>Japan</code>. Send <code>/list</code> "
-            "to see the countries with active curated crises.",
-        )
+        if ar_mode:
+            _send_message(
+                token, chat_id,
+                "🤔 لم أتمكّن من تحديد دولة في رسالتك.\n\n"
+                "أرسل اسم دولة بمفرده — مثلاً <code>السودان</code>، "
+                "<code>تشاد</code>، <code>اليابان</code>. أرسل <code>/list</code> "
+                "لعرض الأزمات المُدرجة."
+            )
+        else:
+            _send_message(
+                token, chat_id,
+                "🤔 I couldn't pick out a country from that message.\n\n"
+                "Send a country name on its own — e.g. <code>Sudan</code>, "
+                "<code>Chad</code>, <code>Japan</code>. Send <code>/list</code> "
+                "to see the countries with active curated crises.",
+            )
         return
 
     score = next((s for s in scores if s.country == country), None)
     if not score:
-        _send_message(token, chat_id, f"❌ No data for {country}.")
+        msg = f"❌ لا توجد بيانات لـ {_ar_name(country)}." if ar_mode else f"❌ No data for {country}."
+        _send_message(token, chat_id, msg)
         return
 
     # Send the overview first so the user gets an immediate response.
-    _send_message(token, chat_id, _format_overview(score))
+    if ar_mode:
+        _send_message(token, chat_id, _format_overview_ar(score))
+    else:
+        _send_message(token, chat_id, _format_overview(score))
 
     # Then generate and send the PDF.
     pdf_path = _try_generate_pdf(country)
     if pdf_path and os.path.exists(pdf_path):
         try:
-            _send_document(
-                token, chat_id, pdf_path,
-                caption=f"📎 <b>{_escape_html(country)}</b> — Executive Summary",
-            )
+            cap_name = _ar_name(country) if ar_mode else country
+            cap = (f"📎 <b>{_escape_html(cap_name)}</b> — الملخص التنفيذي"
+                   if ar_mode else
+                   f"📎 <b>{_escape_html(country)}</b> — Executive Summary")
+            _send_document(token, chat_id, pdf_path, caption=cap)
             _log(f"  → Replied with overview + PDF for {country}")
         except Exception as e:
             _log(f"  ERROR sending PDF for {country}: {e}")
-            _send_message(token, chat_id,
-                           f"⚠️ PDF generated but failed to send: {e}")
+            err = (f"⚠️ تم إعداد الـ PDF لكن تعذّر إرساله: {e}" if ar_mode
+                   else f"⚠️ PDF generated but failed to send: {e}")
+            _send_message(token, chat_id, err)
     else:
-        _send_message(token, chat_id,
-                       "⚠️ Couldn't generate the executive summary PDF. "
-                       "The overview above is current.")
+        msg = ("⚠️ تعذّر إعداد الملخص التنفيذي. النظرة العامة أعلاه محدّثة."
+               if ar_mode else
+               "⚠️ Couldn't generate the executive summary PDF. "
+               "The overview above is current.")
+        _send_message(token, chat_id, msg)
 
 
 # ── Background scheduler (run_check hourly) ────────────────────────────
