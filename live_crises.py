@@ -72,58 +72,130 @@ def _reputable(domain: str) -> bool:
     return any(d == r or d.endswith("." + r) for r in _REPUTABLE)
 
 
-# ── ReliefWeb: current disasters for a country ─────────────────────────────
-def reliefweb_disasters(country: str, limit: int = 5) -> List[dict]:
-    enc = urllib.parse.quote(country)
-    url = (
-        "https://api.reliefweb.int/v1/disasters"
-        f"?appname={APP}&limit={limit}&profile=list"
-        f"&filter[operator]=AND"
-        f"&filter[conditions][0][field]=country.name&filter[conditions][0][value]={enc}"
-        f"&filter[conditions][1][field]=status&filter[conditions][1][value]=current"
-        "&sort[]=date.created:desc"
-    )
-    j = _http_json(url)
+import xml.etree.ElementTree as _ET
+import email.utils as _eu
+import re as _re
+
+
+def _iso3_lower(country: str) -> str:
+    """Best-effort ISO3 code for a country name, used in ReliefWeb URLs."""
+    try:
+        import world_countries as _wc
+        info = _wc.describe(country)
+        if info and info.get("iso3"):
+            return info["iso3"].lower()
+    except Exception:
+        pass
+    # tiny inline fallback for the most common cases
+    fb = {"philippines":"phl","sudan":"sdn","yemen":"yem","syria":"syr",
+          "syrian arab republic":"syr","ukraine":"ukr","gaza":"pse",
+          "palestine":"pse","afghanistan":"afg","myanmar":"mmr","somalia":"som",
+          "ethiopia":"eth","democratic republic of the congo":"cod","dr congo":"cod",
+          "haiti":"hti","lebanon":"lbn","mali":"mli","burkina faso":"bfa",
+          "niger":"ner","nigeria":"nga","chad":"tcd","cameroon":"cmr",
+          "central african republic":"caf","libya":"lby","iraq":"irq",
+          "pakistan":"pak","bangladesh":"bgd","türkiye":"tur","turkey":"tur",
+          "indonesia":"idn","sri lanka":"lka","mozambique":"moz",
+          "kenya":"ken","zimbabwe":"zwe","malawi":"mwi","venezuela":"ven",
+          "south sudan":"ssd","japan":"jpn"}
+    return fb.get((country or "").lower(), "")
+
+
+def _parse_rss(xmltext: str, source_default: str = "ReliefWeb") -> List[dict]:
+    """Parse an RSS 2.0 feed. Returns list of {title, source, url, date}."""
     out: List[dict] = []
-    if not j:
+    if not xmltext:
         return out
-    for d in (j.get("data") or []):
-        f = d.get("fields", {}) or {}
-        types = f.get("type") or []
-        out.append({
-            "name": f.get("name") or country,
-            "type": (types[0].get("name") if types else "Disaster"),
-            "status": f.get("status", "current"),
-            "url": f.get("url") or "",
-            "date": (f.get("date") or {}).get("created", ""),
-        })
+    try:
+        root = _ET.fromstring(xmltext)
+    except Exception:
+        return out
+    for it in root.iter("item"):
+        title = (it.findtext("title") or "").strip()
+        link  = (it.findtext("link") or "").strip()
+        pub   = (it.findtext("pubDate") or "").strip()
+        if not title or not link:
+            continue
+        iso = ""
+        if pub:
+            try:
+                iso = _eu.parsedate_to_datetime(pub).strftime("%Y-%m-%d")
+            except Exception:
+                iso = pub[:10]
+        out.append({"title": title, "source": source_default, "url": link, "date": iso})
     return out
 
 
-# ── ReliefWeb: latest situation reports / news for a country ───────────────
-def reliefweb_reports(country: str, limit: int = 5) -> List[dict]:
-    enc = urllib.parse.quote(country)
-    url = (
-        "https://api.reliefweb.int/v1/reports"
-        f"?appname={APP}&limit={limit}&profile=list"
-        f"&query[value]={enc}&query[fields][]=country.name"
-        "&sort[]=date.created:desc"
-        "&fields[include][]=title&fields[include][]=source"
-        "&fields[include][]=url&fields[include][]=date"
-    )
-    j = _http_json(url)
+# ── ReliefWeb: current disasters for a country (RSS — JSON API now requires
+#    a pre-approved appname and returns 410 to ours). ─────────────────────────
+def reliefweb_disasters(country: str, limit: int = 5) -> List[dict]:
+    iso3 = _iso3_lower(country)
+    # Country page RSS — ReliefWeb publishes all recent updates here.
+    urls = []
+    if iso3:
+        urls.append(f"https://reliefweb.int/country/{iso3}/rss.xml")
+    urls.append("https://reliefweb.int/updates/rss.xml")   # global fallback
+
+    items: List[dict] = []
+    for u in urls:
+        items = _parse_rss(_http_text(u, timeout=6))
+        if items:
+            break
+
+    # Detect a "current disaster" by the title pattern. ReliefWeb titles
+    # often include the disaster type, e.g. "Philippines: M 7.8 Earthquake".
+    DISASTER_KW = [
+        ("Earthquake","earthquake"), ("Tsunami","tsunami"),
+        ("Typhoon","typhoon"), ("Cyclone","cyclone"), ("Hurricane","hurricane"),
+        ("Storm","tropical storm"), ("Flood","flood"), ("Floods","floods"),
+        ("Drought","drought"), ("Wildfire","wildfire"), ("Volcano","volcano"),
+        ("Landslide","landslide"), ("Cholera","cholera"), ("Outbreak","outbreak"),
+        ("Conflict","conflict"), ("Displacement","displacement"),
+        ("Famine","famine"), ("Mpox","mpox"), ("Measles","measles"),
+    ]
+    cl = (country or "").lower()
     out: List[dict] = []
-    if not j:
-        return out
-    for d in (j.get("data") or []):
-        f = d.get("fields", {}) or {}
-        src = (f.get("source") or [{}])
+    for it in items:
+        title = it["title"]
+        tl = title.lower()
+        if cl and cl not in tl:
+            continue
+        type_label = "Humanitarian update"
+        for label, kw in DISASTER_KW:
+            if kw in tl:
+                type_label = label
+                break
         out.append({
-            "title": f.get("title") or "",
-            "source": (src[0].get("name") if src else "ReliefWeb"),
-            "url": f.get("url") or "",
-            "date": (f.get("date") or {}).get("created", ""),
+            "name": title,
+            "type": type_label,
+            "status": "current",
+            "url": it["url"],
+            "date": it["date"],
         })
+        if len(out) >= limit:
+            break
+    return out
+
+
+# ── ReliefWeb: latest situation reports / news for a country (RSS). ────────
+def reliefweb_reports(country: str, limit: int = 5) -> List[dict]:
+    iso3 = _iso3_lower(country)
+    url = f"https://reliefweb.int/country/{iso3}/rss.xml" if iso3 \
+          else "https://reliefweb.int/updates/rss.xml"
+    items = _parse_rss(_http_text(url, timeout=6))
+    cl = (country or "").lower()
+    out: List[dict] = []
+    for it in items:
+        if cl and cl not in it["title"].lower():
+            continue
+        out.append({
+            "title": it["title"],
+            "source": it["source"],
+            "url": it["url"],
+            "date": it["date"],
+        })
+        if len(out) >= limit:
+            break
     return out
 
 
